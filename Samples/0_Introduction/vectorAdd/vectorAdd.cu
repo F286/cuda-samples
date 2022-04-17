@@ -22,12 +22,31 @@ __global__ void vectorAdd(const float *A, const float *B, float *C,
   }
 }
 
-__global__ void vectorMultiply(const float* A, const float* B, float* C,
-    int numElements) {
+__global__ void vectorMultiply(const ML_DeviceArray A, const ML_DeviceArray B, ML_DeviceArray C) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
-    if (i < numElements) {
-        C[i] = A[i] * B[i] + 0.0f;
+    if (i < C.numElements.x * C.numElements.y) {
+        C.deviceBuffer[i] = A.deviceBuffer[i] * B.deviceBuffer[i] + 0.0f;
+    }
+}
+
+void Multiply(ML_Array& arrayA, ML_Array& arrayB, ML_Array& arrayOut)
+{
+    // Error code to check return values for CUDA calls
+    cudaError_t err = cudaSuccess;
+
+    Int2 numElements = arrayA.deviceArray.numElements;
+    int threadsPerBlock = 256;
+    int blocksPerGrid = (numElements.Size() + threadsPerBlock - 1) / threadsPerBlock;
+    printf("CUDA kernel launch with %d blocks of %d threads\n", blocksPerGrid,
+        threadsPerBlock);
+    vectorMultiply << <blocksPerGrid, threadsPerBlock >> > (arrayA.deviceArray, arrayB.deviceArray, arrayOut.deviceArray);
+    err = cudaGetLastError();
+
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Failed to launch vectorAdd kernel (error code %s)!\n",
+            cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -41,17 +60,28 @@ void Run()
     size_t size = numElements.Size() * sizeof(float);
     printf("[Vector addition of %d elements]\n", numElements.Size());
 
-    ML_Array arrayA{ numElements };
+    ML_Array arrayA{ Int2{3, 1} };
     //arrayA.InitializeToRandomValues();
     arrayA[Int2{ 0, 0 }] = 2;
     arrayA[Int2{ 1, 0 }] = 3;
+    arrayA[Int2{ 2, 0 }] = 4;
 
-	ML_Array arrayB{ numElements };
+    ML_Array arrayB{ Int2{3, 1} };
+    //ML_Array arrayB{ Int2{3, 3} };
     //arrayB.InitializeToRandomValues();
-    arrayB[Int2{ 0, 0 }] = 5;
-    arrayB[Int2{ 1, 0 }] = 6;
+    arrayB[Int2{ 0, 0 }] = 1;
+    arrayB[Int2{ 1, 0 }] = 0;
+    arrayB[Int2{ 2, 0 }] = 0;
 
-	ML_Array arrayC{ numElements };
+    //arrayB[Int2{ 0, 1 }] = 0;
+    //arrayB[Int2{ 1, 1 }] = 1;
+    //arrayB[Int2{ 2, 1 }] = 0;
+
+    //arrayB[Int2{ 0, 2 }] = 0;
+    //arrayB[Int2{ 1, 2 }] = 0;
+    //arrayB[Int2{ 2, 2 }] = 1;
+
+    ML_Array arrayC{ Int2{3, 1} };
 
     arrayA.HostToDevice();
     arrayB.HostToDevice();
@@ -71,18 +101,19 @@ void Run()
     //}
     
     // Launch the Vector Multiply CUDA Kernel
-    int threadsPerBlock = 256;
-    int blocksPerGrid = (numElements.Size() + threadsPerBlock - 1) / threadsPerBlock;
-    printf("CUDA kernel launch with %d blocks of %d threads\n", blocksPerGrid,
-        threadsPerBlock);
-    vectorMultiply << <blocksPerGrid, threadsPerBlock >> > (arrayA.deviceBuffer, arrayB.deviceBuffer, arrayC.deviceBuffer, numElements.Size());
-    err = cudaGetLastError();
+    Multiply(arrayA, arrayB, arrayC);
+    //int threadsPerBlock = 256;
+    //int blocksPerGrid = (numElements.Size() + threadsPerBlock - 1) / threadsPerBlock;
+    //printf("CUDA kernel launch with %d blocks of %d threads\n", blocksPerGrid,
+    //    threadsPerBlock);
+    //vectorMultiply << <blocksPerGrid, threadsPerBlock >> > (arrayA.deviceArray.deviceBuffer, arrayB.deviceArray.deviceBuffer, arrayC.deviceArray.deviceBuffer, numElements);
+    //err = cudaGetLastError();
 
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Failed to launch vectorAdd kernel (error code %s)!\n",
-            cudaGetErrorString(err));
-        exit(EXIT_FAILURE);
-    }
+    //if (err != cudaSuccess) {
+    //    fprintf(stderr, "Failed to launch vectorAdd kernel (error code %s)!\n",
+    //        cudaGetErrorString(err));
+    //    exit(EXIT_FAILURE);
+    //}
 
     arrayC.DeviceToHost();
 
