@@ -39,17 +39,13 @@ struct ML_Array
     {
         // Allocate the host input vector A
         hostArray.resize(numElements.Size());
-        h_A = &hostArray[0];
+        hostBuffer = &hostArray[0];
 
         //h_A = (float*)malloc(size);
 
-		for (int i = 0; i < numElements.Size(); ++i) 
-        {
-			h_A[i] = rand() / (float)RAND_MAX;
-		}
 
         // Verify that allocations succeeded
-        if (h_A == NULL) {
+        if (hostBuffer == NULL) {
             fprintf(stderr, "Failed to allocate host vectors!\n");
             exit(EXIT_FAILURE);
         }
@@ -58,7 +54,7 @@ struct ML_Array
         cudaError_t err = cudaSuccess;
 
         // Allocate the device input vector A
-        err = cudaMalloc((void**)&d_A, size);
+        err = cudaMalloc((void**)&deviceBuffer, size);
 
         if (err != cudaSuccess) {
             fprintf(stderr, "Failed to allocate device vector A (error code %s)!\n",
@@ -72,7 +68,7 @@ struct ML_Array
         cudaError_t err = cudaSuccess;
 
         // Free device global memory
-        err = cudaFree(d_A);
+        err = cudaFree(deviceBuffer);
 
         if (err != cudaSuccess) {
             fprintf(stderr, "Failed to free device vector A (error code %s)!\n",
@@ -84,6 +80,14 @@ struct ML_Array
         //free(h_A);
     }
 
+    void InitializeToRandomValues()
+    {
+        for (int i = 0; i < numElements.Size(); ++i)
+        {
+            hostBuffer[i] = rand() / (float)RAND_MAX;
+        }
+    }
+
     void HostToDevice()
     {
         cudaError_t err = cudaSuccess;
@@ -92,7 +96,7 @@ struct ML_Array
         // vectors in
         // device memory
         printf("Copy input data from the host memory to the CUDA device\n");
-        err = cudaMemcpy(d_A, h_A, size, cudaMemcpyHostToDevice);
+        err = cudaMemcpy(deviceBuffer, hostBuffer, size, cudaMemcpyHostToDevice);
 
         if (err != cudaSuccess) {
             fprintf(stderr,
@@ -102,11 +106,28 @@ struct ML_Array
         }
     }
 
+    void DeviceToHost()
+    {
+        cudaError_t err = cudaSuccess;
+
+        // Copy the device result vector in device memory to the host result vector
+// in host memory.
+        printf("Copy output data from the CUDA device to the host memory\n");
+        err = cudaMemcpy(hostBuffer, deviceBuffer, size, cudaMemcpyDeviceToHost);
+
+        if (err != cudaSuccess) {
+            fprintf(stderr,
+                "Failed to copy vector C from device to host (error code %s)!\n",
+                cudaGetErrorString(err));
+            exit(EXIT_FAILURE);
+        }
+    }
+
     // Host
     std::vector<float> hostArray;
-    float* h_A;
+    float* hostBuffer;
     // Device
-    float* d_A;
+    float* deviceBuffer;
 
     size_t size;
     Int2 numElements;
@@ -122,87 +143,23 @@ void Run()
     size_t size = numElements.Size() * sizeof(float);
     printf("[Vector addition of %d elements]\n", numElements.Size());
 
-    // Allocate the host input vector A
-    //float *h_A = (float *)malloc(size);
     ML_Array arrayA{ numElements };
+    arrayA.InitializeToRandomValues();
 
-    // Allocate the host input vector B
-    //float* h_B = (float*)malloc(size);
+	ML_Array arrayB{ numElements };
+    arrayB.InitializeToRandomValues();
 
-    // Allocate the host output vector C
-    float* h_C = (float*)malloc(size);
+	ML_Array arrayC{ numElements };
 
-    // Verify that allocations succeeded
-    if (h_B == NULL || h_C == NULL) {
-        fprintf(stderr, "Failed to allocate host vectors!\n");
-        exit(EXIT_FAILURE);
-    }
-
-    // Initialize the host input vectors
-    for (int i = 0; i < numElements.Size(); ++i) {
-        //h_A[i] = rand() / (float)RAND_MAX;
-        h_B[i] = rand() / (float)RAND_MAX;
-    }
-
-    // Allocate the device input vector A
-    //float *d_A = NULL;
-    //err = cudaMalloc((void **)&d_A, size);
-
-    //if (err != cudaSuccess) {
-    //  fprintf(stderr, "Failed to allocate device vector A (error code %s)!\n",
-    //          cudaGetErrorString(err));
-    //  exit(EXIT_FAILURE);
-    //}
-
-    // Allocate the device input vector B
-    float* d_B = NULL;
-    err = cudaMalloc((void**)&d_B, size);
-
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Failed to allocate device vector B (error code %s)!\n",
-            cudaGetErrorString(err));
-        exit(EXIT_FAILURE);
-    }
-
-    // Allocate the device output vector C
-    float* d_C = NULL;
-    err = cudaMalloc((void**)&d_C, size);
-
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Failed to allocate device vector C (error code %s)!\n",
-            cudaGetErrorString(err));
-        exit(EXIT_FAILURE);
-    }
-
-    //// Copy the host input vectors A and B in host memory to the device input
-    //// vectors in
-    //// device memory
-    //printf("Copy input data from the host memory to the CUDA device\n");
-    //err = cudaMemcpy(d_A, h_A, size, cudaMemcpyHostToDevice);
     arrayA.HostToDevice();
-
-    //if (err != cudaSuccess) {
-    //  fprintf(stderr,
-    //          "Failed to copy vector A from host to device (error code %s)!\n",
-    //          cudaGetErrorString(err));
-    //  exit(EXIT_FAILURE);
-    //}
-
-    err = cudaMemcpy(d_B, h_B, size, cudaMemcpyHostToDevice);
-
-    if (err != cudaSuccess) {
-        fprintf(stderr,
-            "Failed to copy vector B from host to device (error code %s)!\n",
-            cudaGetErrorString(err));
-        exit(EXIT_FAILURE);
-    }
+    arrayB.HostToDevice();
 
     // Launch the Vector Add CUDA Kernel
     int threadsPerBlock = 256;
     int blocksPerGrid = (numElements.Size() + threadsPerBlock - 1) / threadsPerBlock;
     printf("CUDA kernel launch with %d blocks of %d threads\n", blocksPerGrid,
         threadsPerBlock);
-    vectorAdd << <blocksPerGrid, threadsPerBlock >> > (arrayA.d_A, d_B, d_C, numElements.Size());
+    vectorAdd << <blocksPerGrid, threadsPerBlock >> > (arrayA.deviceBuffer, arrayB.deviceBuffer, arrayC.deviceBuffer, numElements.Size());
     err = cudaGetLastError();
 
     if (err != cudaSuccess) {
@@ -211,57 +168,17 @@ void Run()
         exit(EXIT_FAILURE);
     }
 
-    // Copy the device result vector in device memory to the host result vector
-    // in host memory.
-    printf("Copy output data from the CUDA device to the host memory\n");
-    err = cudaMemcpy(h_C, d_C, size, cudaMemcpyDeviceToHost);
-
-    if (err != cudaSuccess) {
-        fprintf(stderr,
-            "Failed to copy vector C from device to host (error code %s)!\n",
-            cudaGetErrorString(err));
-        exit(EXIT_FAILURE);
-    }
+    arrayC.DeviceToHost();
 
     // Verify that the result vector is correct
     for (int i = 0; i < numElements.Size(); ++i) {
-        if (fabs(arrayA.h_A[i] + h_B[i] - h_C[i]) > 1e-5) {
+        if (fabs(arrayA.hostBuffer[i] + arrayB.hostBuffer[i] - arrayC.hostBuffer[i]) > 1e-5) {
             fprintf(stderr, "Result verification failed at element %d!\n", i);
             exit(EXIT_FAILURE);
         }
     }
 
     printf("Test PASSED\n");
-
-    //// Free device global memory
-    //err = cudaFree(d_A);
-
-    //if (err != cudaSuccess) {
-    //  fprintf(stderr, "Failed to free device vector A (error code %s)!\n",
-    //          cudaGetErrorString(err));
-    //  exit(EXIT_FAILURE);
-    //}
-
-    err = cudaFree(d_B);
-
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Failed to free device vector B (error code %s)!\n",
-            cudaGetErrorString(err));
-        exit(EXIT_FAILURE);
-    }
-
-    err = cudaFree(d_C);
-
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Failed to free device vector C (error code %s)!\n",
-            cudaGetErrorString(err));
-        exit(EXIT_FAILURE);
-    }
-
-    // Free host memory
-    //free(h_A);
-    free(h_B);
-    free(h_C);
 }
 
 /**
