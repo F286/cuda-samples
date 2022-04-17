@@ -122,7 +122,12 @@ struct ML_Array
         }
     }
 
-    int Index(Int2 position)
+    Int2 NumElements() const
+    {
+        return deviceArray.numElements;
+    }
+
+    int Index(Int2 position) const
     {
         return position.x + position.y * deviceArray.numElements.x;
     }
