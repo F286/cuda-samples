@@ -6,15 +6,21 @@
 #include <cuda_runtime.h>
 
 #include <helper_cuda.h>
+#include <cuda_runtime.h>
 
 struct Int2
 {
     int x;
     int y;
-
+ 
     int Size()
     {
-        return x * y;
+        return Int2::Size(*this);
+    }
+
+    __host__ __device__ static int Size(Int2 instance)
+    {
+        return instance.x * instance.y;
     }
 };
 

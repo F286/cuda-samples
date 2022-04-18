@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <vector>
 #include <assert.h>
+#include <memory>
 
 // For the CUDA runtime routines (prefixed with "cuda_")
 #include <cuda_runtime.h>
@@ -26,7 +27,7 @@ __global__ void vectorAdd(const float *A, const float *B, float *C,
 __global__ void vectorMultiply(const ML_DeviceArray A, const ML_DeviceArray B, ML_DeviceArray C) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
-    if (i < C.numElements.x * C.numElements.y) 
+    if (i < Int2::Size(C.numElements)) 
     {
         float* bufferRootB = &B.deviceBuffer[i * A.numElements.x];
 
@@ -37,7 +38,6 @@ __global__ void vectorMultiply(const ML_DeviceArray A, const ML_DeviceArray B, M
         }
 
         C.deviceBuffer[i] = total;
-        //C.deviceBuffer[i] = A.deviceBuffer[i] * B.deviceBuffer[i] + 0.0f;
     }
 }
 
@@ -64,57 +64,82 @@ void Multiply(ML_Array& arrayA, ML_Array& arrayB, ML_Array& arrayOut)
     }
 }
 
+struct ML_DenseConnection
+{
+    ML_DenseConnection(ML_Array& previous, ML_Array& next)
+        : previous(previous)
+        , next(next)
+        , connection(ConnectionMatrixSize(previous, next))
+    {
+    }
+
+    void Run()
+    {
+        previous.HostToDevice();
+        connection.HostToDevice();
+
+        // Launch the Vector Multiply CUDA Kernel
+        Multiply(previous, connection, next);
+
+        next.DeviceToHost();
+    }
+
+    static Int2 ConnectionMatrixSize(const ML_Array& previous, const ML_Array& next)
+    {
+        assert(previous.NumElements().y == 1);
+        assert(next.NumElements().y == 1);
+        return Int2{ previous.NumElements().x, next.NumElements().x };
+    }
+
+    ML_Array& previous;
+    ML_Array& next;
+
+    ML_Array connection;
+
+    float& operator[] (int index)
+    {
+        return connection[index];
+    }
+    float& operator[] (Int2 position)
+    {
+        return connection[position];
+    }
+};
+
 void Run()
 {
-    // Error code to check return values for CUDA calls
-    cudaError_t err = cudaSuccess;
+    ML_Array array1{ Int2{ 3, 1 } };
+    array1[Int2{ 0, 0 }] = 10;
+    array1[Int2{ 1, 0 }] = 100;
+    array1[Int2{ 2, 0 }] = 1000;
 
-    ML_Array arrayA{ Int2{3, 1} };
-    //arrayA.InitializeToRandomValues();
-    arrayA[Int2{ 0, 0 }] = 10;
-    arrayA[Int2{ 1, 0 }] = 100;
-    arrayA[Int2{ 2, 0 }] = 1000;
+    ML_Array array2 = ML_Array{ Int2{ 4, 1 } };
 
-    //ML_Array arrayB{ Int2{3, 1} };
-    ML_Array arrayB{ Int2{3, 4} };
-    //arrayB.InitializeToRandomValues();
-    arrayB[Int2{ 0, 0 }] = 1;
-    arrayB[Int2{ 1, 0 }] = 0;
-    arrayB[Int2{ 2, 0 }] = 0;
+	ML_DenseConnection connection1{ array1, array2 };
 
-    arrayB[Int2{ 0, 1 }] = 0;
-    arrayB[Int2{ 1, 1 }] = 1;
-    arrayB[Int2{ 2, 1 }] = 0;
+    connection1[Int2{ 0, 0 }] = 1;
+    connection1[Int2{ 1, 0 }] = 0;
+    connection1[Int2{ 2, 0 }] = 0;
 
-    arrayB[Int2{ 0, 2 }] = 0;
-    arrayB[Int2{ 1, 2 }] = 0;
-    arrayB[Int2{ 2, 2 }] = 1;
+    connection1[Int2{ 0, 1 }] = 0;
+    connection1[Int2{ 1, 1 }] = 1;
+    connection1[Int2{ 2, 1 }] = 0;
 
-    arrayB[Int2{ 0, 3 }] = 1;
-    arrayB[Int2{ 1, 3 }] = 1;
-    arrayB[Int2{ 2, 3 }] = 1;
+    connection1[Int2{ 0, 2 }] = 0;
+    connection1[Int2{ 1, 2 }] = 0;
+    connection1[Int2{ 2, 2 }] = 1;
 
-    ML_Array arrayC{ Int2{4, 1} };
+    connection1[Int2{ 0, 3 }] = 1;
+    connection1[Int2{ 1, 3 }] = 1;
+    connection1[Int2{ 2, 3 }] = 1;
 
-    arrayA.HostToDevice();
-    arrayB.HostToDevice();
-
-    // Launch the Vector Multiply CUDA Kernel
-    Multiply(arrayA, arrayB, arrayC);
-
-    arrayC.DeviceToHost();
+    connection1.Run();
 
     // Verify that the result vector is correct
-    assert(arrayC.hostArray[0] == 10);
-    assert(arrayC.hostArray[1] == 100);
-    assert(arrayC.hostArray[2] == 1000);
-    assert(arrayC.hostArray[3] == 1110);
-    //for (int i = 0; i < arrayC.NumElements().Size(); ++i) {
-    //    if (fabs(arrayA.hostBuffer[i] * arrayB.hostBuffer[i] - arrayC.hostBuffer[i]) > 1e-5) {
-    //        fprintf(stderr, "Result verification failed at element %d!\n", i);
-    //        exit(EXIT_FAILURE);
-    //    }
-    //}
+    assert(array2[0] == 10);
+    assert(array2[1] == 100);
+    assert(array2[2] == 1000);
+    assert(array2[3] == 1110);
 
     printf("Test PASSED\n");
 }
