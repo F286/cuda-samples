@@ -9,6 +9,8 @@
 #include <helper_cuda.h>
 #include "ML_Array.h"
 
+struct ML_DenseConnection;
+
 /**
  * CUDA Kernel Device code
  *
@@ -24,6 +26,7 @@ __global__ void vectorAdd(const float *A, const float *B, float *C,
   }
 }
 
+template <class ConnectionType>
 __global__ void vectorMultiply(const ML_DeviceArray<float> A, const ML_DeviceArray<float> B, ML_DeviceArray<float> C) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
@@ -34,7 +37,7 @@ __global__ void vectorMultiply(const ML_DeviceArray<float> A, const ML_DeviceArr
         float total = 0.0f;
         for (int elementIndex = 0; elementIndex < A.numElements.x; elementIndex++)
         {
-            total += A.deviceBuffer[elementIndex] * bufferRootB[elementIndex];
+            total += ConnectionType::Run(A.deviceBuffer[elementIndex], bufferRootB[elementIndex]);
         }
 
         C.deviceBuffer[i] = total;
@@ -55,7 +58,7 @@ void Multiply(ML_Array<float>& arrayA, ML_Array<float>& arrayB, ML_Array<float>&
     int blocksPerGrid = (numElements.Size() + threadsPerBlock - 1) / threadsPerBlock;
     printf("CUDA kernel launch with %d blocks of %d threads\n", blocksPerGrid,
         threadsPerBlock);
-    vectorMultiply << <blocksPerGrid, threadsPerBlock >> > (arrayA.deviceArray, arrayB.deviceArray, arrayOut.deviceArray);
+    vectorMultiply<ML_DenseConnection> << <blocksPerGrid, threadsPerBlock >> > (arrayA.deviceArray, arrayB.deviceArray, arrayOut.deviceArray);
     err = cudaGetLastError();
 
     if (err != cudaSuccess) {
@@ -92,10 +95,10 @@ struct ML_DenseConnection
         return Int2{ previous.NumElements().x, next.NumElements().x };
     }
 
-    ML_Array<float>& previous;
-    ML_Array<float>& next;
-
-    ML_Array<float> connection;
+    __host__ __device__ static float Run(const float& previous, const float& connection)
+    {
+        return previous * connection;
+    }
 
     float& operator[] (int index)
     {
@@ -105,6 +108,11 @@ struct ML_DenseConnection
     {
         return connection[position];
     }
+
+    ML_Array<float>& previous;
+    ML_Array<float>& next;
+
+    ML_Array<float> connection;
 };
 
 struct ML_ValueDecorator
