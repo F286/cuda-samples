@@ -138,11 +138,14 @@ struct ML_Array
         return position.x + position.y * deviceArray.numElements.x;
     }
 
-    float& operator[] (int index);
-    float& operator[] (Int2 position);
-    //{
-    //    return *(hostBuffer * index);
-    //};
+    float& operator[] (int index)
+    {
+        return *(hostBuffer + index);
+    }
+    float& operator[] (Int2 position)
+    {
+        return *(hostBuffer + Index(position));
+    }
 
     // Host
     std::vector<float> hostArray;

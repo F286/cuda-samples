@@ -106,6 +106,26 @@ struct ML_DenseConnection
     }
 };
 
+struct ML_ValueDecorator
+{
+};
+struct ML_ConnectionDecorator
+{
+};
+
+struct ML_DenseArrayDerivative : public ML_ValueDecorator
+{
+    // TODO (fd) : ML_Array should be an object that supports weights and biases. Struct packed together for memory access efficiency.
+
+    ML_Array& original;
+    ML_Array derivative;
+};
+
+struct ML_DenseConnectionDerivative : public ML_ConnectionDecorator
+{
+
+};
+
 void Run()
 {
     ML_Array array1{ Int2{ 3, 1 } };
