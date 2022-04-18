@@ -24,7 +24,7 @@ __global__ void vectorAdd(const float *A, const float *B, float *C,
   }
 }
 
-__global__ void vectorMultiply(const ML_DeviceArray A, const ML_DeviceArray B, ML_DeviceArray C) {
+__global__ void vectorMultiply(const ML_DeviceArray<float> A, const ML_DeviceArray<float> B, ML_DeviceArray<float> C) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
     if (i < Int2::Size(C.numElements)) 
@@ -41,7 +41,8 @@ __global__ void vectorMultiply(const ML_DeviceArray A, const ML_DeviceArray B, M
     }
 }
 
-void Multiply(ML_Array& arrayA, ML_Array& arrayB, ML_Array& arrayOut)
+// Possible to pass in method to execute on cuda vectors with template using global method?
+void Multiply(ML_Array<float>& arrayA, ML_Array<float>& arrayB, ML_Array<float>& arrayOut)
 {
     assert(arrayB.NumElements().x == arrayA.NumElements().x);
     assert(arrayB.NumElements().y == arrayOut.NumElements().x);
@@ -66,7 +67,7 @@ void Multiply(ML_Array& arrayA, ML_Array& arrayB, ML_Array& arrayOut)
 
 struct ML_DenseConnection
 {
-    ML_DenseConnection(ML_Array& previous, ML_Array& next)
+    ML_DenseConnection(ML_Array<float>& previous, ML_Array<float>& next)
         : previous(previous)
         , next(next)
         , connection(ConnectionMatrixSize(previous, next))
@@ -84,17 +85,17 @@ struct ML_DenseConnection
         next.DeviceToHost();
     }
 
-    static Int2 ConnectionMatrixSize(const ML_Array& previous, const ML_Array& next)
+    static Int2 ConnectionMatrixSize(const ML_Array<float>& previous, const ML_Array<float>& next)
     {
         assert(previous.NumElements().y == 1);
         assert(next.NumElements().y == 1);
         return Int2{ previous.NumElements().x, next.NumElements().x };
     }
 
-    ML_Array& previous;
-    ML_Array& next;
+    ML_Array<float>& previous;
+    ML_Array<float>& next;
 
-    ML_Array connection;
+    ML_Array<float> connection;
 
     float& operator[] (int index)
     {
@@ -117,8 +118,8 @@ struct ML_DenseArrayDerivative : public ML_ValueDecorator
 {
     // TODO (fd) : ML_Array should be an object that supports weights and biases. Struct packed together for memory access efficiency.
 
-    ML_Array& original;
-    ML_Array derivative;
+    ML_Array<float>& original;
+    ML_Array<float> derivative;
 };
 
 struct ML_DenseConnectionDerivative : public ML_ConnectionDecorator
@@ -128,12 +129,12 @@ struct ML_DenseConnectionDerivative : public ML_ConnectionDecorator
 
 void Run()
 {
-    ML_Array array1{ Int2{ 3, 1 } };
+    ML_Array<float> array1{ Int2{ 3, 1 } };
     array1[Int2{ 0, 0 }] = 10;
     array1[Int2{ 1, 0 }] = 100;
     array1[Int2{ 2, 0 }] = 1000;
 
-    ML_Array array2 = ML_Array{ Int2{ 4, 1 } };
+    ML_Array<float> array2{ Int2{ 4, 1 } };
 
 	ML_DenseConnection connection1{ array1, array2 };
 

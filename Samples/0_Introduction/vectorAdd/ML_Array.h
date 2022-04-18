@@ -13,35 +13,42 @@ struct Int2
     int x;
     int y;
  
-    int Size()
+    int Size() const
     {
         return Int2::Size(*this);
     }
 
-    __host__ __device__ static int Size(Int2 instance)
+    __host__ __device__ static int Size(const Int2& instance)
     {
         return instance.x * instance.y;
     }
 };
 
+template <class Type>
 struct ML_DeviceArray
 {
     // Device
-    float* deviceBuffer;
+    Type* deviceBuffer;
     Int2 numElements;
+
+    static size_t AllocationSize(const Int2 numElements)
+    {
+        return numElements.Size() * sizeof(Type);
+    }
 };
 
-struct ML_DeviceArrayAllocation : public ML_DeviceArray
+template <class Type>
+struct ML_DeviceArrayAllocation : public ML_DeviceArray<Type>
 {
     ML_DeviceArrayAllocation(Int2 numElements)
     {
+        this->numElements = numElements;
+
         // Error code to check return values for CUDA calls
         cudaError_t err = cudaSuccess;
 
         // Allocate the device input vector A
-        size_t size = numElements.Size() * sizeof(float);
-        err = cudaMalloc((void**)&deviceBuffer, size);
-        this->numElements = numElements;
+        err = cudaMalloc((void**)&deviceBuffer, ML_DeviceArray<Type>::AllocationSize(numElements));
         
         if (err != cudaSuccess) {
             fprintf(stderr, "Failed to allocate device vector A (error code %s)!\n",
@@ -49,6 +56,8 @@ struct ML_DeviceArrayAllocation : public ML_DeviceArray
             exit(EXIT_FAILURE);
         }
     }
+
+    ML_DeviceArrayAllocation(const ML_DeviceArrayAllocation&) = delete;
 
     ~ML_DeviceArrayAllocation()
     {
@@ -63,37 +72,8 @@ struct ML_DeviceArrayAllocation : public ML_DeviceArray
             exit(EXIT_FAILURE);
         }
     }
-};
 
-struct ML_Array
-{
-    ML_Array(Int2 numElements)
-        : deviceArray(numElements)
-        , size(numElements.Size() * sizeof(float))
-    {
-        // Allocate the host input vector A
-        hostArray.resize(numElements.Size());
-        hostBuffer = &hostArray[0];
-
-        //h_A = (float*)malloc(size);
-
-        // Verify that allocations succeeded
-        if (hostBuffer == NULL) 
-        {
-            fprintf(stderr, "Failed to allocate host vectors!\n");
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    void InitializeToRandomValues()
-    {
-        for (int i = 0; i < hostArray.size(); ++i)
-        {
-            hostBuffer[i] = rand() / (float)RAND_MAX;
-        }
-    }
-
-    void HostToDevice()
+    void HostToDevice(Type* hostBuffer)
     {
         cudaError_t err = cudaSuccess;
 
@@ -101,7 +81,7 @@ struct ML_Array
         // vectors in
         // device memory
         printf("Copy input data from the host memory to the CUDA device\n");
-        err = cudaMemcpy(deviceArray.deviceBuffer, hostBuffer, size, cudaMemcpyHostToDevice);
+        err = cudaMemcpy(deviceBuffer, hostBuffer, ML_DeviceArray<Type>::AllocationSize(numElements), cudaMemcpyHostToDevice);
 
         if (err != cudaSuccess) {
             fprintf(stderr,
@@ -111,14 +91,14 @@ struct ML_Array
         }
     }
 
-    void DeviceToHost()
+    void DeviceToHost(Type* hostBuffer)
     {
         cudaError_t err = cudaSuccess;
 
         // Copy the device result vector in device memory to the host result vector
 // in host memory.
         printf("Copy output data from the CUDA device to the host memory\n");
-        err = cudaMemcpy(hostBuffer, deviceArray.deviceBuffer, size, cudaMemcpyDeviceToHost);
+        err = cudaMemcpy(hostBuffer, deviceBuffer, ML_DeviceArray<Type>::AllocationSize(numElements), cudaMemcpyDeviceToHost);
 
         if (err != cudaSuccess) {
             fprintf(stderr,
@@ -126,6 +106,45 @@ struct ML_Array
                 cudaGetErrorString(err));
             exit(EXIT_FAILURE);
         }
+    }
+};
+
+template <class Type>
+struct ML_Array
+{
+    ML_Array(Int2 numElements)
+        : deviceArray(numElements)
+    {
+        // Allocate the host input vector A
+        hostArray.resize(numElements.Size());
+        hostBuffer = &hostArray[0];
+
+        // Verify that allocations succeeded
+        if (hostBuffer == NULL) 
+        {
+            fprintf(stderr, "Failed to allocate host vectors!\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    ML_Array(const ML_Array&) = delete;
+
+    //void InitializeToRandomValues()
+    //{
+    //    for (int i = 0; i < hostArray.size(); ++i)
+    //    {
+    //        hostBuffer[i] = rand() / (float)RAND_MAX;
+    //    }
+    //}
+
+    void HostToDevice()
+    {
+        deviceArray.HostToDevice(hostBuffer);
+    }
+
+    void DeviceToHost()
+    {
+        deviceArray.DeviceToHost(hostBuffer);
     }
 
     Int2 NumElements() const
@@ -138,18 +157,17 @@ struct ML_Array
         return position.x + position.y * deviceArray.numElements.x;
     }
 
-    float& operator[] (int index)
+    Type& operator[] (int index)
     {
         return *(hostBuffer + index);
     }
-    float& operator[] (Int2 position)
+    Type& operator[] (Int2 position)
     {
         return *(hostBuffer + Index(position));
     }
 
     // Host
-    std::vector<float> hostArray;
-    float* hostBuffer;
-    size_t size;
-    ML_DeviceArrayAllocation deviceArray;
+    std::vector<Type> hostArray;
+    Type* hostBuffer;
+    ML_DeviceArrayAllocation<Type> deviceArray;
 };
