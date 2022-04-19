@@ -27,25 +27,45 @@ __global__ void vectorAdd(const float *A, const float *B, float *C,
 }
 
 template <class ConnectionType>
-__global__ void vectorMultiply(const ML_DeviceArray<float> A, const ML_DeviceArray<float> B, ML_DeviceArray<float> C) {
+__global__ void vectorMultiply(const ML_DeviceArray<float> A, const ML_DeviceArray<ConnectionType> B, ML_DeviceArray<float> C) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
     if (i < Int2::Size(C.numElements)) 
     {
-        float* bufferRootB = &B.deviceBuffer[i * A.numElements.x];
+        ConnectionType* bufferRootB = &B.deviceBuffer[i * A.numElements.x];
 
         float total = 0.0f;
         for (int elementIndex = 0; elementIndex < A.numElements.x; elementIndex++)
         {
-            total += ConnectionType::Run(A.deviceBuffer[elementIndex], bufferRootB[elementIndex]);
+            total += bufferRootB[elementIndex].Run(A.deviceBuffer[elementIndex]);
+            //total += ConnectionType::Run(A.deviceBuffer[elementIndex], bufferRootB[elementIndex]);
         }
 
         C.deviceBuffer[i] = total;
     }
 }
 
+//template<class TypePrevious, class TypeNext, class RunMethod>
+//struct ML_ConnectionBase
+//{
+//    __host__ __device__ static float Run(const float& previous, const float& connection)
+//    // type previous
+//    // type next
+//    // run method
+//};
+
+struct ML_ScalarOperator
+{
+    float value;
+
+    __host__ __device__ float Run(const float& previous)
+    {
+        return previous * value;
+    }
+};
+
 // Possible to pass in method to execute on cuda vectors with template using global method?
-void Multiply(ML_Array<float>& arrayA, ML_Array<float>& arrayB, ML_Array<float>& arrayOut)
+void Multiply(ML_Array<float>& arrayA, ML_Array<ML_ScalarOperator>& arrayB, ML_Array<float>& arrayOut)
 {
     assert(arrayB.NumElements().x == arrayA.NumElements().x);
     assert(arrayB.NumElements().y == arrayOut.NumElements().x);
@@ -58,7 +78,7 @@ void Multiply(ML_Array<float>& arrayA, ML_Array<float>& arrayB, ML_Array<float>&
     int blocksPerGrid = (numElements.Size() + threadsPerBlock - 1) / threadsPerBlock;
     printf("CUDA kernel launch with %d blocks of %d threads\n", blocksPerGrid,
         threadsPerBlock);
-    vectorMultiply<ML_DenseConnection> << <blocksPerGrid, threadsPerBlock >> > (arrayA.deviceArray, arrayB.deviceArray, arrayOut.deviceArray);
+    vectorMultiply << <blocksPerGrid, threadsPerBlock >> > (arrayA.deviceArray, arrayB.deviceArray, arrayOut.deviceArray);
     err = cudaGetLastError();
 
     if (err != cudaSuccess) {
@@ -102,17 +122,17 @@ struct ML_DenseConnection
 
     float& operator[] (int index)
     {
-        return connection[index];
+        return connection[index].value;
     }
     float& operator[] (Int2 position)
     {
-        return connection[position];
+        return connection[position].value;
     }
 
     ML_Array<float>& previous;
     ML_Array<float>& next;
 
-    ML_Array<float> connection;
+    ML_Array<ML_ScalarOperator> connection;
 };
 
 struct ML_ValueDecorator
@@ -122,13 +142,13 @@ struct ML_ConnectionDecorator
 {
 };
 
-struct ML_DenseArrayDerivative : public ML_ValueDecorator
-{
-    // TODO (fd) : ML_Array should be an object that supports weights and biases. Struct packed together for memory access efficiency.
-
-    ML_Array<float>& original;
-    ML_Array<float> derivative;
-};
+//struct ML_DenseArrayDerivative : public ML_ValueDecorator
+//{
+//    // TODO (fd) : ML_Array should be an object that supports weights and biases. Struct packed together for memory access efficiency.
+//
+//    ML_Array<float>& original;
+//    ML_Array<float> derivative;
+//};
 
 struct ML_DenseConnectionDerivative : public ML_ConnectionDecorator
 {
