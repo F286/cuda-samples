@@ -2,14 +2,13 @@
 #include <vector>
 #include <assert.h>
 #include <memory>
-
 // For the CUDA runtime routines (prefixed with "cuda_")
 #include <cuda_runtime.h>
-
 #include <helper_cuda.h>
-#include "ML_Array.h"
 
-struct ML_DenseConnection;
+#include "ML_Array.h"
+#include "ML_CheckCudaError.h"
+#include "ML_DenseConnection.h"
 
 /**
  * CUDA Kernel Device code
@@ -17,172 +16,123 @@ struct ML_DenseConnection;
  * Computes the vector addition of A and B into C. The 3 vectors have the same
  * number of elements numElements.
  */
-__global__ void vectorAdd(const float *A, const float *B, float *C,
-                          int numElements) {
-  int i = blockDim.x * blockIdx.x + threadIdx.x;
+//__global__ void vectorAdd(const float *A, const float *B, float *C,
+//                          int numElements) {
+//  int i = blockDim.x * blockIdx.x + threadIdx.x;
+//
+//  if (i < numElements) {
+//    C[i] = A[i] + B[i] + 0.0f;
+//  }
+//}
 
-  if (i < numElements) {
-    C[i] = A[i] + B[i] + 0.0f;
-  }
-}
-
-template <class ConnectionType>
-__global__ void vectorMultiply(const ML_DeviceArray<float> A, const ML_DeviceArray<ConnectionType> B, ML_DeviceArray<float> C) {
+__global__ void vectorMultiply(const ML_DeviceArray<float> A, const ML_DeviceArray<float> B, ML_DeviceArray<float> C) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
     if (i < Int2::Size(C.numElements)) 
     {
-        ConnectionType* bufferRootB = &B.deviceBuffer[i * A.numElements.x];
+        float* bufferRootB = &B.deviceBuffer[i * A.numElements.x];
 
         float total = 0.0f;
         for (int elementIndex = 0; elementIndex < A.numElements.x; elementIndex++)
         {
-            total += bufferRootB[elementIndex].Run(A.deviceBuffer[elementIndex]);
-            //total += ConnectionType::Run(A.deviceBuffer[elementIndex], bufferRootB[elementIndex]);
+            total += bufferRootB[elementIndex] * A.deviceBuffer[elementIndex];
         }
 
         C.deviceBuffer[i] = total;
     }
 }
 
-//template<class TypePrevious, class TypeNext, class RunMethod>
-//struct ML_ConnectionBase
-//{
-//    __host__ __device__ static float Run(const float& previous, const float& connection)
-//    // type previous
-//    // type next
-//    // run method
-//};
+__global__ void vectorDivide(const ML_DeviceArray<float> A, const ML_DeviceArray<float> B, ML_DeviceArray<float> C) {
+    int i = blockDim.x * blockIdx.x + threadIdx.x;
 
-struct ML_ScalarOperator
-{
-    float value;
-
-    __host__ __device__ float Run(const float& previous)
+    if (i < Int2::Size(C.numElements))
     {
-        return previous * value;
-    }
-};
+        float* bufferRootB = &B.deviceBuffer[i * A.numElements.x];
 
-// Possible to pass in method to execute on cuda vectors with template using global method?
-void Multiply(ML_Array<float>& arrayA, ML_Array<ML_ScalarOperator>& arrayB, ML_Array<float>& arrayOut)
-{
-    assert(arrayB.NumElements().x == arrayA.NumElements().x);
-    assert(arrayB.NumElements().y == arrayOut.NumElements().x);
+        float total = 0.0f;
+        for (int elementIndex = 0; elementIndex < A.numElements.x; elementIndex++)
+        {
+            float b = bufferRootB[elementIndex];
+            if (b != 0)
+            {
+                total += A.deviceBuffer[elementIndex] / b;
+            }
+        }
 
-    // Error code to check return values for CUDA calls
-    cudaError_t err = cudaSuccess;
-
-    Int2 numElements = arrayOut.deviceArray.numElements;
-    int threadsPerBlock = 256;
-    int blocksPerGrid = (numElements.Size() + threadsPerBlock - 1) / threadsPerBlock;
-    printf("CUDA kernel launch with %d blocks of %d threads\n", blocksPerGrid,
-        threadsPerBlock);
-    vectorMultiply << <blocksPerGrid, threadsPerBlock >> > (arrayA.deviceArray, arrayB.deviceArray, arrayOut.deviceArray);
-    err = cudaGetLastError();
-
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Failed to launch vectorAdd kernel (error code %s)!\n",
-            cudaGetErrorString(err));
-        exit(EXIT_FAILURE);
+        C.deviceBuffer[i] = total;
     }
 }
 
-struct ML_DenseConnection
+void Multiply(ML_Matrix<float>& input, ML_Matrix<float>& connection, ML_Matrix<float>& output)
 {
-    ML_DenseConnection(ML_Array<float>& previous, ML_Array<float>& next)
-        : previous(previous)
-        , next(next)
-        , connection(ConnectionMatrixSize(previous, next))
-    {
-    }
+    input.HostToDevice();
+    connection.HostToDevice();
 
-    void Run()
-    {
-        previous.HostToDevice();
-        connection.HostToDevice();
+    assert(connection.NumElements().x == input.NumElements().x);
+    assert(connection.NumElements().y == output.NumElements().x);
 
-        // Launch the Vector Multiply CUDA Kernel
-        Multiply(previous, connection, next);
+    ML_CheckCudaError checkError;
 
-        next.DeviceToHost();
-    }
+    Int2 numElements = output.deviceArray.numElements;
+    int threadsPerBlock = 256;
+    int blocksPerGrid = (numElements.Size() + threadsPerBlock - 1) / threadsPerBlock;
+    printf("CUDA kernel launch with %d blocks of %d threads\n", blocksPerGrid, threadsPerBlock);
+	vectorMultiply<<<blocksPerGrid, threadsPerBlock>>>(input.deviceArray, connection.deviceArray, output.deviceArray);
 
-    static Int2 ConnectionMatrixSize(const ML_Array<float>& previous, const ML_Array<float>& next)
-    {
-        assert(previous.NumElements().y == 1);
-        assert(next.NumElements().y == 1);
-        return Int2{ previous.NumElements().x, next.NumElements().x };
-    }
+    output.DeviceToHost();
+}
 
-    __host__ __device__ static float Run(const float& previous, const float& connection)
-    {
-        return previous * connection;
-    }
-
-    float& operator[] (int index)
-    {
-        return connection[index].value;
-    }
-    float& operator[] (Int2 position)
-    {
-        return connection[position].value;
-    }
-
-    ML_Array<float>& previous;
-    ML_Array<float>& next;
-
-    ML_Array<ML_ScalarOperator> connection;
-};
-
-struct ML_ValueDecorator
+void Divide(ML_Matrix<float>& input, ML_Matrix<float>& connection, ML_Matrix<float>& output)
 {
-};
-struct ML_ConnectionDecorator
-{
-};
+    input.HostToDevice();
+    connection.HostToDevice();
 
-//struct ML_DenseArrayDerivative : public ML_ValueDecorator
-//{
-//    // TODO (fd) : ML_Array should be an object that supports weights and biases. Struct packed together for memory access efficiency.
-//
-//    ML_Array<float>& original;
-//    ML_Array<float> derivative;
-//};
+    assert(connection.NumElements().x == input.NumElements().x);
+    assert(connection.NumElements().y == output.NumElements().x);
 
-struct ML_DenseConnectionDerivative : public ML_ConnectionDecorator
-{
+    ML_CheckCudaError checkError;
 
-};
+    Int2 numElements = output.deviceArray.numElements;
+    int threadsPerBlock = 256;
+    int blocksPerGrid = (numElements.Size() + threadsPerBlock - 1) / threadsPerBlock;
+    printf("CUDA kernel launch with %d blocks of %d threads\n", blocksPerGrid, threadsPerBlock);
+    vectorDivide << <blocksPerGrid, threadsPerBlock >> > (input.deviceArray, connection.deviceArray, output.deviceArray);
+
+    output.DeviceToHost();
+}
 
 void Run()
 {
-    ML_Array<float> array1{ Int2{ 3, 1 } };
-    array1[Int2{ 0, 0 }] = 10;
-    array1[Int2{ 1, 0 }] = 100;
-    array1[Int2{ 2, 0 }] = 1000;
+    // Matrix input {10, 100, 100};
+    // Matrix connection {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, {1, 1, 1}};
+    // Matrix output = input * connection;
 
-    ML_Array<float> array2{ Int2{ 4, 1 } };
+    ML_Matrix<float> array1{ Int2{ 3, 1 } };
+    array1[{ 0, 0 }] = 10;
+    array1[{ 1, 0 }] = 100;
+    array1[{ 2, 0 }] = 1000;
 
-	ML_DenseConnection connection1{ array1, array2 };
+    ML_Matrix<float> array2{ Int2{ 4, 1 } };
 
-    connection1[Int2{ 0, 0 }] = 1;
-    connection1[Int2{ 1, 0 }] = 0;
-    connection1[Int2{ 2, 0 }] = 0;
+    ML_Matrix<float> connection1{ ML_DenseConnection::ConnectionMatrixSize(array1, array2) };
 
-    connection1[Int2{ 0, 1 }] = 0;
-    connection1[Int2{ 1, 1 }] = 1;
-    connection1[Int2{ 2, 1 }] = 0;
+    connection1[{ 0, 0 }] = 1;
+    connection1[{ 1, 0 }] = 0;
+    connection1[{ 2, 0 }] = 0;
 
-    connection1[Int2{ 0, 2 }] = 0;
-    connection1[Int2{ 1, 2 }] = 0;
-    connection1[Int2{ 2, 2 }] = 1;
+    connection1[{ 0, 1 }] = 0;
+    connection1[{ 1, 1 }] = 1;
+    connection1[{ 2, 1 }] = 0;
 
-    connection1[Int2{ 0, 3 }] = 1;
-    connection1[Int2{ 1, 3 }] = 1;
-    connection1[Int2{ 2, 3 }] = 1;
+    connection1[{ 0, 2 }] = 0;
+    connection1[{ 1, 2 }] = 0;
+    connection1[{ 2, 2 }] = 1;
 
-    connection1.Run();
+    connection1[{ 0, 3 }] = 1;
+    connection1[{ 1, 3 }] = 1;
+    connection1[{ 2, 3 }] = 1;
+
+    Multiply(array1, connection1, array2);
 
     // Verify that the result vector is correct
     assert(array2[0] == 10);
@@ -191,6 +141,15 @@ void Run()
     assert(array2[3] == 1110);
 
     printf("Test PASSED\n");
+
+
+    ML_Matrix<float> array3{ Int2{ 4, 1 } };
+    Divide(array1, connection1, array3);
+
+    assert(array3[0] == 10);
+    assert(array3[1] == 100);
+    assert(array3[2] == 1000);
+    assert(array3[3] == 1110);
 }
 
 /**

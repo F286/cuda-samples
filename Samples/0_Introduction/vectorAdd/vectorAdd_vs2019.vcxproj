@@ -105,6 +105,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ML_Array.h" />
+    <ClInclude Include="ML_CheckCudaError.h" />
+    <ClInclude Include="ML_DenseConnection.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

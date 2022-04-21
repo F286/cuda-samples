@@ -110,9 +110,9 @@ struct ML_DeviceArrayAllocation : public ML_DeviceArray<Type>
 };
 
 template <class Type>
-struct ML_Array
+struct ML_Matrix
 {
-    ML_Array(Int2 numElements)
+    ML_Matrix(Int2 numElements)
         : deviceArray(numElements)
     {
         // Allocate the host input vector A
@@ -127,7 +127,7 @@ struct ML_Array
         }
     }
 
-    ML_Array(const ML_Array&) = delete;
+    ML_Matrix(const ML_Matrix&) = delete;
 
     //void InitializeToRandomValues()
     //{
