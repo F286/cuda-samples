@@ -25,7 +25,7 @@
 //  }
 //}
 
-__global__ void vectorMultiply(const ML_DeviceArray<float> A, const ML_DeviceArray<float> B, ML_DeviceArray<float> C) {
+__global__ void vectorMultiply(const ML_DeviceMatrix<float> A, const ML_DeviceMatrix<float> B, ML_DeviceMatrix<float> C) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
     if (i < Int2::Size(C.numElements)) 
@@ -42,7 +42,7 @@ __global__ void vectorMultiply(const ML_DeviceArray<float> A, const ML_DeviceArr
     }
 }
 
-__global__ void vectorDivide(const ML_DeviceArray<float> A, const ML_DeviceArray<float> B, ML_DeviceArray<float> C) {
+__global__ void vectorDivide(const ML_DeviceMatrix<float> A, const ML_DeviceMatrix<float> B, ML_DeviceMatrix<float> C) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
     if (i < Int2::Size(C.numElements))
@@ -107,30 +107,15 @@ void Run()
     // Matrix connection {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, {1, 1, 1}};
     // Matrix output = input * connection;
 
-    ML_Matrix<float> array1{ Int2{ 3, 1 } };
-    array1[{ 0, 0 }] = 10;
-    array1[{ 1, 0 }] = 100;
-    array1[{ 2, 0 }] = 1000;
+    ML_Matrix<float> array1{ Int2{ 3, 1 }, {10, 100, 1000} };
 
     ML_Matrix<float> array2{ Int2{ 4, 1 } };
 
-    ML_Matrix<float> connection1{ ML_DenseConnection::ConnectionMatrixSize(array1, array2) };
-
-    connection1[{ 0, 0 }] = 1;
-    connection1[{ 1, 0 }] = 0;
-    connection1[{ 2, 0 }] = 0;
-
-    connection1[{ 0, 1 }] = 0;
-    connection1[{ 1, 1 }] = 1;
-    connection1[{ 2, 1 }] = 0;
-
-    connection1[{ 0, 2 }] = 0;
-    connection1[{ 1, 2 }] = 0;
-    connection1[{ 2, 2 }] = 1;
-
-    connection1[{ 0, 3 }] = 1;
-    connection1[{ 1, 3 }] = 1;
-    connection1[{ 2, 3 }] = 1;
+    ML_Matrix<float> connection1{ ML_DenseConnection::ConnectionMatrixSize(array1, array2),
+        {1, 0, 0,
+         0, 1, 0,
+         0, 0, 1,
+         1, 1, 1}};
 
     Multiply(array1, connection1, array2);
 
