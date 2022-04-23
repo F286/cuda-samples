@@ -77,11 +77,8 @@ void Multiply(ML_Matrix<float>& input, ML_Matrix<float>& connection, ML_Matrix<f
 
     ML_CheckCudaError checkError;
 
-    Int2 numElements = output.deviceArray.numElements;
-    int threadsPerBlock = 256;
-    int blocksPerGrid = (numElements.Size() + threadsPerBlock - 1) / threadsPerBlock;
-    printf("CUDA kernel launch with %d blocks of %d threads\n", blocksPerGrid, threadsPerBlock);
-	vectorMultiply CUDA_KERNEL(blocksPerGrid, threadsPerBlock)(input.deviceArray, connection.deviceArray, output.deviceArray);
+    ML_KernelSize size{ output.deviceArray.numElements };
+	vectorMultiply CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(input.deviceArray, connection.deviceArray, output.deviceArray);
         
     output.DeviceToHost();
 }
@@ -96,11 +93,8 @@ void Divide(ML_Matrix<float>& input, ML_Matrix<float>& connection, ML_Matrix<flo
 
     ML_CheckCudaError checkError;
 
-    Int2 numElements = output.deviceArray.numElements;
-    int threadsPerBlock = 256;
-    int blocksPerGrid = (numElements.Size() + threadsPerBlock - 1) / threadsPerBlock;
-    printf("CUDA kernel launch with %d blocks of %d threads\n", blocksPerGrid, threadsPerBlock);
-    vectorDivide CUDA_KERNEL(blocksPerGrid, threadsPerBlock)(input.deviceArray, connection.deviceArray, output.deviceArray);
+    ML_KernelSize size{ output.deviceArray.numElements };
+    vectorDivide CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(input.deviceArray, connection.deviceArray, output.deviceArray);
 
     output.DeviceToHost();
 }
