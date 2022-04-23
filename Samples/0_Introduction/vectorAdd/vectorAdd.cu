@@ -6,9 +6,13 @@
 #include <cuda_runtime.h>
 #include <helper_cuda.h>
 
+//#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
+
 #include "ML_Array.h"
 #include "ML_CheckCudaError.h"
 #include "ML_DenseConnection.h"
+#include "ML_Helpers.h"
 
 /**
  * CUDA Kernel Device code
@@ -77,8 +81,8 @@ void Multiply(ML_Matrix<float>& input, ML_Matrix<float>& connection, ML_Matrix<f
     int threadsPerBlock = 256;
     int blocksPerGrid = (numElements.Size() + threadsPerBlock - 1) / threadsPerBlock;
     printf("CUDA kernel launch with %d blocks of %d threads\n", blocksPerGrid, threadsPerBlock);
-	vectorMultiply<<<blocksPerGrid, threadsPerBlock>>>(input.deviceArray, connection.deviceArray, output.deviceArray);
-
+	vectorMultiply CUDA_KERNEL(blocksPerGrid, threadsPerBlock)(input.deviceArray, connection.deviceArray, output.deviceArray);
+        
     output.DeviceToHost();
 }
 
@@ -96,7 +100,7 @@ void Divide(ML_Matrix<float>& input, ML_Matrix<float>& connection, ML_Matrix<flo
     int threadsPerBlock = 256;
     int blocksPerGrid = (numElements.Size() + threadsPerBlock - 1) / threadsPerBlock;
     printf("CUDA kernel launch with %d blocks of %d threads\n", blocksPerGrid, threadsPerBlock);
-    vectorDivide << <blocksPerGrid, threadsPerBlock >> > (input.deviceArray, connection.deviceArray, output.deviceArray);
+    vectorDivide CUDA_KERNEL(blocksPerGrid, threadsPerBlock)(input.deviceArray, connection.deviceArray, output.deviceArray);
 
     output.DeviceToHost();
 }
