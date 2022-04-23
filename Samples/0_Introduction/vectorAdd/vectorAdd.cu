@@ -21,58 +21,77 @@ struct ML_Neuron
     // Also uses ReLU
 };
 
-__global__ void vectorMultiply(const ML_DeviceMatrix<float> A, const ML_DeviceMatrix<float> B, ML_DeviceMatrix<float> C) {
+__global__ void vectorMultiply(const ML_DeviceMatrix<float> input, const ML_DeviceMatrix<float> connection, ML_DeviceMatrix<float> output) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
-    if (i < Int2::Size(C.dimensions)) 
+    if (i < Int2::Size(output.dimensions)) 
     {
-        float* bufferRootB = &B.deviceBuffer[i * A.dimensions.x];
+        const float* connectionStart = &connection[i * input.dimensions.x];
 
         float total = 0.0f;
-        for (int elementIndex = 0; elementIndex < A.dimensions.x; elementIndex++)
+        for (int elementIndex = 0; elementIndex < input.dimensions.x; elementIndex++)
         {
-            total += bufferRootB[elementIndex] * A.deviceBuffer[elementIndex];
+            total += input[elementIndex] * connectionStart[elementIndex];
         }
-
-        C.deviceBuffer[i] = total;
+        output[i] = total;
     }
 }
-
-__global__ void vectorDivide(const ML_DeviceMatrix<float> A, const ML_DeviceMatrix<float> B, ML_DeviceMatrix<float> C) {
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
-
-    if (i < Int2::Size(C.dimensions))
-    {
-        float* bufferRootB = &B.deviceBuffer[i * A.dimensions.x];
-
-        float total = 0.0f;
-        for (int elementIndex = 0; elementIndex < A.dimensions.x; elementIndex++)
-        {
-            float b = bufferRootB[elementIndex];
-            if (b != 0)
-            {
-                total += A.deviceBuffer[elementIndex] / b;
-            }
-        }
-
-        C.deviceBuffer[i] = total;
-    }
-}
-
 void Multiply(ML_Matrix<float>& input, ML_Matrix<float>& connection, ML_Matrix<float>& output)
 {
     ML_Helpers::VerifyForwardConnection(input.Dimensions(), connection.Dimensions(), output.Dimensions());
     ML_CheckCudaError checkError;
-    ML_KernelSize size{ output.Dimensions()};
-	vectorMultiply CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(input.DeviceArray(), connection.DeviceArray(), output.DeviceArray());
+    ML_KernelSize size{ output.Dimensions() };
+    vectorMultiply CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(input.DeviceArray(), connection.DeviceArray(), output.DeviceArray());
 }
 
+__global__ void vectorDivide(const ML_DeviceMatrix<float> input, const ML_DeviceMatrix<float> connection, ML_DeviceMatrix<float> output) {
+    int i = blockDim.x * blockIdx.x + threadIdx.x;
+
+    if (i < Int2::Size(output.dimensions))
+    {
+        const float* connectionStart = &connection[i * input.dimensions.x];
+
+        float total = 0.0f;
+        for (int elementIndex = 0; elementIndex < input.dimensions.x; elementIndex++)
+        {
+            float b = connectionStart[elementIndex];
+            if (b != 0)
+            {
+                total += input[elementIndex] / b;
+            }
+        }
+        output[i] = total;
+    }
+}
 void Divide(ML_Matrix<float>& input, ML_Matrix<float>& connection, ML_Matrix<float>& output)
 {
     ML_Helpers::VerifyForwardConnection(input.Dimensions(), connection.Dimensions(), output.Dimensions());
     ML_CheckCudaError checkError;
-    ML_KernelSize size{ output.Dimensions()};
+    ML_KernelSize size{ output.Dimensions() };
     vectorDivide CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(input.DeviceArray(), connection.DeviceArray(), output.DeviceArray());
+}
+
+__global__ void vectorForward(const ML_DeviceMatrix<float> input, const ML_DeviceMatrix<ML_Neuron> connection, ML_DeviceMatrix<float> output) {
+    int i = blockDim.x * blockIdx.x + threadIdx.x;
+
+    if (i < Int2::Size(output.dimensions))
+    {
+        const ML_Neuron* connectionStart = &connection[i * input.dimensions.x];
+
+        float total = 0.0f;
+        for (int elementIndex = 0; elementIndex < input.dimensions.x; elementIndex++)
+        {
+            total += input[elementIndex] * connectionStart[elementIndex].weight;
+        }
+        output[i] = total;
+    }
+}
+void Forward(ML_Matrix<float>& input, ML_Matrix<ML_Neuron>& connection, ML_Matrix<float>& output)
+{
+    ML_Helpers::VerifyForwardConnection(input.Dimensions(), connection.Dimensions(), output.Dimensions());
+    ML_CheckCudaError checkError;
+    ML_KernelSize size{ output.Dimensions() };
+    vectorForward CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(input.DeviceArray(), connection.DeviceArray(), output.DeviceArray());
 }
 
 void Run()
@@ -104,6 +123,7 @@ void Run()
 
     ML_Matrix<float> derivative1{ Int2{ 4, 1 } };
     Divide(layer1, connection1to2, derivative1);
+    //Divide(layer1, connection1to2, derivative1);
 
     assert(derivative1[0] == 10);
     assert(derivative1[1] == 100);

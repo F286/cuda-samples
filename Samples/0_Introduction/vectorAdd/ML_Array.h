@@ -30,19 +30,28 @@ struct ML_DeviceMatrix
     // Device
     Type* deviceBuffer;
     Int2 dimensions;
+
+    __host__ __device__ Type& operator[] (int index)
+    {
+        return deviceBuffer[index];
+    }
+    __host__ __device__ const Type& operator[] (int index) const
+    {
+        return deviceBuffer[index];
+    }
 };
 
 template <class Type>
 struct ML_DeviceMatrixAllocation
 {
-    ML_DeviceMatrixAllocation(Int2 dimensions)
+    ML_DeviceMatrixAllocation(const Int2 dimensions)
     {
         matrix.dimensions = dimensions;
 
         // Error code to check return values for CUDA calls
         cudaError_t err = cudaSuccess;
 
-        // Allocate the device input vector A
+        // Allocate the device input vector
         err = cudaMalloc((void**)&matrix.deviceBuffer, AllocationSize(dimensions));
         
         if (err != cudaSuccess) {
@@ -117,7 +126,7 @@ enum class ML_SyncState : uint8_t
 template <class Type>
 struct ML_Matrix
 {
-    ML_Matrix(Int2 dimensions)
+    ML_Matrix(const Int2 dimensions)
         : deviceAllocation(dimensions)
     {
         // Allocate the host input vector A
@@ -132,7 +141,7 @@ struct ML_Matrix
         }
     }
 
-    ML_Matrix(Int2 dimensions, std::vector<Type>&& constructFrom)
+    ML_Matrix(const Int2 dimensions, std::vector<Type>&& constructFrom)
         : deviceAllocation(dimensions)
     {
         // Allocate the host input vector A
@@ -163,7 +172,7 @@ struct ML_Matrix
         return deviceAllocation.matrix.dimensions;
     }
 
-    int Index(Int2 position) const
+    int Index(const Int2 position) const
     {
         return position.x + position.y * deviceAllocation.dimensions.x;
     }
@@ -188,11 +197,11 @@ struct ML_Matrix
         return hostArray;
     }
 
-    Type& operator[] (int index)
+    Type& operator[] (const int index)
     {
         return HostArray()[index];
     }
-    Type& operator[] (Int2 position)
+    Type& operator[] (const Int2 position)
     {
         return this[Index(position)];
     }
