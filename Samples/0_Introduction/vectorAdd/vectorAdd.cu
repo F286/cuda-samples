@@ -14,21 +14,6 @@
 #include "ML_DenseConnection.h"
 #include "ML_Helpers.h"
 
-/**
- * CUDA Kernel Device code
- *
- * Computes the vector addition of A and B into C. The 3 vectors have the same
- * number of elements numElements.
- */
-//__global__ void vectorAdd(const float *A, const float *B, float *C,
-//                          int numElements) {
-//  int i = blockDim.x * blockIdx.x + threadIdx.x;
-//
-//  if (i < numElements) {
-//    C[i] = A[i] + B[i] + 0.0f;
-//  }
-//}
-
 struct ML_Neuron
 {
     float weight;
@@ -39,12 +24,12 @@ struct ML_Neuron
 __global__ void vectorMultiply(const ML_DeviceMatrix<float> A, const ML_DeviceMatrix<float> B, ML_DeviceMatrix<float> C) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
-    if (i < Int2::Size(C.numElements)) 
+    if (i < Int2::Size(C.dimensions)) 
     {
-        float* bufferRootB = &B.deviceBuffer[i * A.numElements.x];
+        float* bufferRootB = &B.deviceBuffer[i * A.dimensions.x];
 
         float total = 0.0f;
-        for (int elementIndex = 0; elementIndex < A.numElements.x; elementIndex++)
+        for (int elementIndex = 0; elementIndex < A.dimensions.x; elementIndex++)
         {
             total += bufferRootB[elementIndex] * A.deviceBuffer[elementIndex];
         }
@@ -56,12 +41,12 @@ __global__ void vectorMultiply(const ML_DeviceMatrix<float> A, const ML_DeviceMa
 __global__ void vectorDivide(const ML_DeviceMatrix<float> A, const ML_DeviceMatrix<float> B, ML_DeviceMatrix<float> C) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
-    if (i < Int2::Size(C.numElements))
+    if (i < Int2::Size(C.dimensions))
     {
-        float* bufferRootB = &B.deviceBuffer[i * A.numElements.x];
+        float* bufferRootB = &B.deviceBuffer[i * A.dimensions.x];
 
         float total = 0.0f;
-        for (int elementIndex = 0; elementIndex < A.numElements.x; elementIndex++)
+        for (int elementIndex = 0; elementIndex < A.dimensions.x; elementIndex++)
         {
             float b = bufferRootB[elementIndex];
             if (b != 0)
@@ -76,23 +61,17 @@ __global__ void vectorDivide(const ML_DeviceMatrix<float> A, const ML_DeviceMatr
 
 void Multiply(ML_Matrix<float>& input, ML_Matrix<float>& connection, ML_Matrix<float>& output)
 {
-    assert(connection.NumElements().x == input.NumElements().x);
-    assert(connection.NumElements().y == output.NumElements().x);
-
+    ML_Helpers::VerifyForwardConnection(input.Dimensions(), connection.Dimensions(), output.Dimensions());
     ML_CheckCudaError checkError;
-
-    ML_KernelSize size{ output.NumElements()};
+    ML_KernelSize size{ output.Dimensions()};
 	vectorMultiply CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(input.DeviceArray(), connection.DeviceArray(), output.DeviceArray());
 }
 
 void Divide(ML_Matrix<float>& input, ML_Matrix<float>& connection, ML_Matrix<float>& output)
 {
-    assert(connection.NumElements().x == input.NumElements().x);
-    assert(connection.NumElements().y == output.NumElements().x);
-
+    ML_Helpers::VerifyForwardConnection(input.Dimensions(), connection.Dimensions(), output.Dimensions());
     ML_CheckCudaError checkError;
-
-    ML_KernelSize size{ output.NumElements()};
+    ML_KernelSize size{ output.Dimensions()};
     vectorDivide CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(input.DeviceArray(), connection.DeviceArray(), output.DeviceArray());
 }
 

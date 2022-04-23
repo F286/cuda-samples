@@ -29,21 +29,21 @@ struct ML_DeviceMatrix
 {
     // Device
     Type* deviceBuffer;
-    Int2 numElements;
+    Int2 dimensions;
 };
 
 template <class Type>
 struct ML_DeviceMatrixAllocation
 {
-    ML_DeviceMatrixAllocation(Int2 numElements)
+    ML_DeviceMatrixAllocation(Int2 dimensions)
     {
-        matrix.numElements = numElements;
+        matrix.dimensions = dimensions;
 
         // Error code to check return values for CUDA calls
         cudaError_t err = cudaSuccess;
 
         // Allocate the device input vector A
-        err = cudaMalloc((void**)&matrix.deviceBuffer, AllocationSize(numElements));
+        err = cudaMalloc((void**)&matrix.deviceBuffer, AllocationSize(dimensions));
         
         if (err != cudaSuccess) {
             fprintf(stderr, "Failed to allocate device vector A (error code %s)!\n",
@@ -68,9 +68,9 @@ struct ML_DeviceMatrixAllocation
         }
     }
 
-    static size_t AllocationSize(const Int2 numElements)
+    static size_t AllocationSize(const Int2 dimensions)
     {
-        return numElements.Size() * sizeof(Type);
+        return dimensions.Size() * sizeof(Type);
     }
 
     void HostToDevice(Type* hostBuffer)
@@ -79,7 +79,7 @@ struct ML_DeviceMatrixAllocation
 
         // Copy the host input vectors A and B in host memory to the device input vectors in device memory
         printf("Copy input data from the host memory to the CUDA device\n");
-        err = cudaMemcpy(matrix.deviceBuffer, hostBuffer, AllocationSize(matrix.numElements), cudaMemcpyHostToDevice);
+        err = cudaMemcpy(matrix.deviceBuffer, hostBuffer, AllocationSize(matrix.dimensions), cudaMemcpyHostToDevice);
 
         if (err != cudaSuccess) {
             fprintf(stderr,
@@ -95,7 +95,7 @@ struct ML_DeviceMatrixAllocation
 
         // Copy the device result vector in device memory to the host result vector in host memory.
         printf("Copy output data from the CUDA device to the host memory\n");
-        err = cudaMemcpy(hostBuffer, matrix.deviceBuffer, AllocationSize(matrix.numElements), cudaMemcpyDeviceToHost);
+        err = cudaMemcpy(hostBuffer, matrix.deviceBuffer, AllocationSize(matrix.dimensions), cudaMemcpyDeviceToHost);
 
         if (err != cudaSuccess) {
             fprintf(stderr,
@@ -117,11 +117,11 @@ enum class ML_SyncState : uint8_t
 template <class Type>
 struct ML_Matrix
 {
-    ML_Matrix(Int2 numElements)
-        : deviceAllocation(numElements)
+    ML_Matrix(Int2 dimensions)
+        : deviceAllocation(dimensions)
     {
         // Allocate the host input vector A
-        hostArray.resize(numElements.Size());
+        hostArray.resize(dimensions.Size());
         hostBuffer = &hostArray[0];
 
         // Verify that allocations succeeded
@@ -132,12 +132,12 @@ struct ML_Matrix
         }
     }
 
-    ML_Matrix(Int2 numElements, std::vector<Type>&& constructFrom)
-        : deviceAllocation(numElements)
+    ML_Matrix(Int2 dimensions, std::vector<Type>&& constructFrom)
+        : deviceAllocation(dimensions)
     {
         // Allocate the host input vector A
         hostArray = constructFrom;
-        assert(hostArray.size() == numElements.Size());
+        assert(hostArray.size() == dimensions.Size());
         hostBuffer = &hostArray[0];
 
         // Verify that allocations succeeded
@@ -158,14 +158,14 @@ struct ML_Matrix
     //    }
     //}
 
-    Int2 NumElements() const
+    Int2 Dimensions() const
     {
-        return deviceAllocation.matrix.numElements;
+        return deviceAllocation.matrix.dimensions;
     }
 
     int Index(Int2 position) const
     {
-        return position.x + position.y * deviceAllocation.numElements.x;
+        return position.x + position.y * deviceAllocation.dimensions.x;
     }
 
     ML_DeviceMatrix<Type>& DeviceArray()
