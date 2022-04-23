@@ -30,25 +30,20 @@ struct ML_DeviceMatrix
     // Device
     Type* deviceBuffer;
     Int2 numElements;
-
-    static size_t AllocationSize(const Int2 numElements)
-    {
-        return numElements.Size() * sizeof(Type);
-    }
 };
 
 template <class Type>
-struct ML_DeviceMatrixAllocation : public ML_DeviceMatrix<Type>
+struct ML_DeviceMatrixAllocation
 {
     ML_DeviceMatrixAllocation(Int2 numElements)
     {
-        this->numElements = numElements;
+        matrix.numElements = numElements;
 
         // Error code to check return values for CUDA calls
         cudaError_t err = cudaSuccess;
 
         // Allocate the device input vector A
-        err = cudaMalloc((void**)&deviceBuffer, ML_DeviceMatrix<Type>::AllocationSize(numElements));
+        err = cudaMalloc((void**)&matrix.deviceBuffer, AllocationSize(numElements));
         
         if (err != cudaSuccess) {
             fprintf(stderr, "Failed to allocate device vector A (error code %s)!\n",
@@ -64,7 +59,7 @@ struct ML_DeviceMatrixAllocation : public ML_DeviceMatrix<Type>
         cudaError_t err = cudaSuccess;
 
         // Free device global memory
-        err = cudaFree(deviceBuffer);
+        err = cudaFree(matrix.deviceBuffer);
 
         if (err != cudaSuccess) {
             fprintf(stderr, "Failed to free device vector A (error code %s)!\n",
@@ -73,15 +68,18 @@ struct ML_DeviceMatrixAllocation : public ML_DeviceMatrix<Type>
         }
     }
 
+    static size_t AllocationSize(const Int2 numElements)
+    {
+        return numElements.Size() * sizeof(Type);
+    }
+
     void HostToDevice(Type* hostBuffer)
     {
         cudaError_t err = cudaSuccess;
 
-        // Copy the host input vectors A and B in host memory to the device input
-        // vectors in
-        // device memory
+        // Copy the host input vectors A and B in host memory to the device input vectors in device memory
         printf("Copy input data from the host memory to the CUDA device\n");
-        err = cudaMemcpy(deviceBuffer, hostBuffer, ML_DeviceMatrix<Type>::AllocationSize(numElements), cudaMemcpyHostToDevice);
+        err = cudaMemcpy(matrix.deviceBuffer, hostBuffer, AllocationSize(matrix.numElements), cudaMemcpyHostToDevice);
 
         if (err != cudaSuccess) {
             fprintf(stderr,
@@ -95,10 +93,9 @@ struct ML_DeviceMatrixAllocation : public ML_DeviceMatrix<Type>
     {
         cudaError_t err = cudaSuccess;
 
-        // Copy the device result vector in device memory to the host result vector
-// in host memory.
+        // Copy the device result vector in device memory to the host result vector in host memory.
         printf("Copy output data from the CUDA device to the host memory\n");
-        err = cudaMemcpy(hostBuffer, deviceBuffer, ML_DeviceMatrix<Type>::AllocationSize(numElements), cudaMemcpyDeviceToHost);
+        err = cudaMemcpy(hostBuffer, matrix.deviceBuffer, AllocationSize(matrix.numElements), cudaMemcpyDeviceToHost);
 
         if (err != cudaSuccess) {
             fprintf(stderr,
@@ -107,13 +104,21 @@ struct ML_DeviceMatrixAllocation : public ML_DeviceMatrix<Type>
             exit(EXIT_FAILURE);
         }
     }
+
+    ML_DeviceMatrix<Type> matrix;
+};
+
+enum class ML_SyncState : uint8_t
+{
+    HostAuthorative,
+    DeviceAuthorative,
 };
 
 template <class Type>
 struct ML_Matrix
 {
     ML_Matrix(Int2 numElements)
-        : deviceArray(numElements)
+        : deviceAllocation(numElements)
     {
         // Allocate the host input vector A
         hostArray.resize(numElements.Size());
@@ -128,7 +133,7 @@ struct ML_Matrix
     }
 
     ML_Matrix(Int2 numElements, std::vector<Type>&& constructFrom)
-        : deviceArray(numElements)
+        : deviceAllocation(numElements)
     {
         // Allocate the host input vector A
         hostArray = constructFrom;
@@ -153,37 +158,48 @@ struct ML_Matrix
     //    }
     //}
 
-    void HostToDevice()
-    {
-        deviceArray.HostToDevice(hostBuffer);
-    }
-
-    void DeviceToHost()
-    {
-        deviceArray.DeviceToHost(hostBuffer);
-    }
-
     Int2 NumElements() const
     {
-        return deviceArray.numElements;
+        return deviceAllocation.matrix.numElements;
     }
 
     int Index(Int2 position) const
     {
-        return position.x + position.y * deviceArray.numElements.x;
+        return position.x + position.y * deviceAllocation.numElements.x;
+    }
+
+    ML_DeviceMatrix<Type>& DeviceArray()
+    {
+        if (syncState == ML_SyncState::HostAuthorative)
+        {
+            syncState = ML_SyncState::DeviceAuthorative;
+            deviceAllocation.HostToDevice(hostBuffer);
+        }
+        return deviceAllocation.matrix;
+    }
+
+    std::vector<Type>& HostArray()
+    {
+        if (syncState == ML_SyncState::DeviceAuthorative)
+        {
+            syncState = ML_SyncState::HostAuthorative;
+            deviceAllocation.DeviceToHost(hostBuffer);
+        }
+        return hostArray;
     }
 
     Type& operator[] (int index)
     {
-        return *(hostBuffer + index);
+        return HostArray()[index];
     }
     Type& operator[] (Int2 position)
     {
-        return *(hostBuffer + Index(position));
+        return this[Index(position)];
     }
-
+private:
     // Host
     std::vector<Type> hostArray;
     Type* hostBuffer;
-    ML_DeviceMatrixAllocation<Type> deviceArray;
+    ML_DeviceMatrixAllocation<Type> deviceAllocation;
+    ML_SyncState syncState = ML_SyncState::HostAuthorative;
 };

@@ -29,6 +29,13 @@
 //  }
 //}
 
+struct ML_Neuron
+{
+    float weight;
+    float bias;
+    // Also uses ReLU
+};
+
 __global__ void vectorMultiply(const ML_DeviceMatrix<float> A, const ML_DeviceMatrix<float> B, ML_DeviceMatrix<float> C) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
@@ -69,34 +76,24 @@ __global__ void vectorDivide(const ML_DeviceMatrix<float> A, const ML_DeviceMatr
 
 void Multiply(ML_Matrix<float>& input, ML_Matrix<float>& connection, ML_Matrix<float>& output)
 {
-    input.HostToDevice();
-    connection.HostToDevice();
-
     assert(connection.NumElements().x == input.NumElements().x);
     assert(connection.NumElements().y == output.NumElements().x);
 
     ML_CheckCudaError checkError;
 
-    ML_KernelSize size{ output.deviceArray.numElements };
-	vectorMultiply CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(input.deviceArray, connection.deviceArray, output.deviceArray);
-        
-    output.DeviceToHost();
+    ML_KernelSize size{ output.NumElements()};
+	vectorMultiply CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(input.DeviceArray(), connection.DeviceArray(), output.DeviceArray());
 }
 
 void Divide(ML_Matrix<float>& input, ML_Matrix<float>& connection, ML_Matrix<float>& output)
 {
-    input.HostToDevice();
-    connection.HostToDevice();
-
     assert(connection.NumElements().x == input.NumElements().x);
     assert(connection.NumElements().y == output.NumElements().x);
 
     ML_CheckCudaError checkError;
 
-    ML_KernelSize size{ output.deviceArray.numElements };
-    vectorDivide CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(input.deviceArray, connection.deviceArray, output.deviceArray);
-
-    output.DeviceToHost();
+    ML_KernelSize size{ output.NumElements()};
+    vectorDivide CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(input.DeviceArray(), connection.DeviceArray(), output.DeviceArray());
 }
 
 void Run()
@@ -105,34 +102,34 @@ void Run()
     // Matrix connection {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, {1, 1, 1}};
     // Matrix output = input * connection;
 
-    ML_Matrix<float> array1{ Int2{ 3, 1 }, {10, 100, 1000} };
+    ML_Matrix<float> layer1{ Int2{ 3, 1 }, {10, 100, 1000} };
 
-    ML_Matrix<float> array2{ Int2{ 4, 1 } };
+    ML_Matrix<float> layer2{ Int2{ 4, 1 } };
 
-    ML_Matrix<float> connection1{ ML_DenseConnection::ConnectionMatrixSize(array1, array2),
+    ML_Matrix<float> connection1to2{ ML_DenseConnection::ConnectionMatrixSize(layer1, layer2),
         {1, 0, 0,
          0, 1, 0,
          0, 0, 1,
          1, 1, 1}};
 
-    Multiply(array1, connection1, array2);
+    Multiply(layer1, connection1to2, layer2);
 
     // Verify that the result vector is correct
-    assert(array2[0] == 10);
-    assert(array2[1] == 100);
-    assert(array2[2] == 1000);
-    assert(array2[3] == 1110);
+    assert(layer2[0] == 10);
+    assert(layer2[1] == 100);
+    assert(layer2[2] == 1000);
+    assert(layer2[3] == 1110);
 
     printf("Test PASSED\n");
 
 
-    ML_Matrix<float> array3{ Int2{ 4, 1 } };
-    Divide(array1, connection1, array3);
+    ML_Matrix<float> derivative1{ Int2{ 4, 1 } };
+    Divide(layer1, connection1to2, derivative1);
 
-    assert(array3[0] == 10);
-    assert(array3[1] == 100);
-    assert(array3[2] == 1000);
-    assert(array3[3] == 1110);
+    assert(derivative1[0] == 10);
+    assert(derivative1[1] == 100);
+    assert(derivative1[2] == 1000);
+    assert(derivative1[3] == 1110);
 }
 
 /**
