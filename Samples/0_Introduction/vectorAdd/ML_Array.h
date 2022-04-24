@@ -17,6 +17,10 @@ struct Int2
     {
         return x * y;
     }
+    __host__ __device__ bool operator== (const Int2& other)
+    {
+        return x == other.x && y == other.y;
+    }
 };
 
 template <class Type>
@@ -34,7 +38,10 @@ struct ML_DeviceMatrix
     {
         return deviceBuffer[index];
     }
-
+    __host__ __device__ Int2 Dimensions() const
+    {
+        return dimensions;
+    }
     __host__ __device__ int Count() const
     {
         return dimensions.Count();

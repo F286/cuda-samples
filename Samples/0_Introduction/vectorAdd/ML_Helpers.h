@@ -15,6 +15,11 @@ namespace ML_Helpers
         assert(connection.x == input.x);
         assert(connection.y == output.x);
     }
+    void VerifyBackwardConnection(Int2 source, Int2 connection, Int2 derivative)
+    {
+        assert(connection == derivative);
+        assert(source.x == connection.y);
+    }
 }
 
 struct ML_KernelSize

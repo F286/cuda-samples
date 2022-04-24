@@ -84,7 +84,8 @@ __global__ void vectorForward(const ML_DeviceMatrix<float> input, const ML_Devic
             const ML_Neuron& element = *(connectionStart + elementIndex);
             total += input[elementIndex] * element.weight + element.bias;
         }
-        output[i] = total;
+        // ReLU
+        output[i] = max(0.0f, total);
     }
 }
 void Forward(ML_Matrix<float>& input, ML_Matrix<ML_Neuron>& connection, ML_Matrix<float>& output)
@@ -93,7 +94,31 @@ void Forward(ML_Matrix<float>& input, ML_Matrix<ML_Neuron>& connection, ML_Matri
     ML_CheckCudaError checkError;
     ML_KernelSize size{ output.Dimensions() };
     vectorForward CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(input.DeviceArray(), connection.DeviceArray(), output.DeviceArray());
+} 
+
+__global__ void vectorBackward(const ML_DeviceMatrix<float> source, const ML_DeviceMatrix<ML_Neuron> connection, ML_DeviceMatrix<ML_Neuron> derivative) {
+    int i = blockDim.x * blockIdx.x + threadIdx.x;
+
+    if (i < derivative.Count())
+    {
+        const int sourceIndex = i % connection.Dimensions().y;
+
+        ML_Neuron set;
+
+        set.bias = source[sourceIndex] - connection[i].bias;
+        set.weight = set.bias / connection[i].weight;
+
+        derivative[i] = set;
+    } 
 }
+void Backward(ML_Matrix<float>& source, ML_Matrix<ML_Neuron>& connection, ML_Matrix<ML_Neuron>& derivative)
+{
+    ML_Helpers::VerifyBackwardConnection(source.Dimensions(), connection.Dimensions(), derivative.Dimensions());
+    ML_CheckCudaError checkError;
+    ML_KernelSize size{ derivative.Dimensions() };
+    vectorBackward CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(source.DeviceArray(), connection.DeviceArray(), derivative.DeviceArray());
+}
+
 
 void RunNetwork()
 {
@@ -101,11 +126,21 @@ void RunNetwork()
 
     ML_Matrix<float> layer2{ Int2{ 1, 1 } };
 
-    ML_Matrix<ML_Neuron> connection1to2{ Int2{ 2, 1 }, { {0.1, 1}, {0.1, 1} } };
+    ML_Matrix<ML_Neuron> connection1to2{ Int2{ 2, 1 }, { {0.1, 0}, {0.1, 2} } };
 
+    // Run forward
     Forward(layer1, connection1to2, layer2);
 
-    assert(layer2[0] == (2 + 11));
+    assert(layer2[0] == (1 + 12));
+
+    // Run back propagation
+    ML_Matrix<float> errorLayer2{ Int2{ 1, 1 }, { 1 } };
+    ML_Matrix<ML_Neuron> derivativeConnection1to2{ Int2{ 2, 1 } };
+
+    Backward(errorLayer2, connection1to2, derivativeConnection1to2);
+
+    assert(derivativeConnection1to2[0].weight == 10);
+    assert(derivativeConnection1to2[1].weight == -10);
 }
 
 void RunTests()
@@ -143,9 +178,6 @@ void RunTests()
     assert(derivative1[1] == 100);
     assert(derivative1[2] == 1000);
     assert(derivative1[3] == 1110);
-
-
-
 }
 
 /**
