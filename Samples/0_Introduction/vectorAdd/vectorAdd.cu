@@ -81,7 +81,8 @@ __global__ void vectorForward(const ML_DeviceMatrix<float> input, const ML_Devic
         float total = 0.0f;
         for (int elementIndex = 0; elementIndex < input.dimensions.x; elementIndex++)
         {
-            total += input[elementIndex] * connectionStart[elementIndex].weight;
+            const ML_Neuron& element = *(connectionStart + elementIndex);
+            total += input[elementIndex] * element.weight + element.bias;
         }
         output[i] = total;
     }
@@ -94,7 +95,20 @@ void Forward(ML_Matrix<float>& input, ML_Matrix<ML_Neuron>& connection, ML_Matri
     vectorForward CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(input.DeviceArray(), connection.DeviceArray(), output.DeviceArray());
 }
 
-void Run()
+void RunNetwork()
+{
+    ML_Matrix<float> layer1{ Int2{ 2, 1 }, {10, 100} };
+
+    ML_Matrix<float> layer2{ Int2{ 1, 1 } };
+
+    ML_Matrix<ML_Neuron> connection1to2{ Int2{ 2, 1 }, { {0.1, 1}, {0.1, 1} } };
+
+    Forward(layer1, connection1to2, layer2);
+
+    assert(layer2[0] == (2 + 11));
+}
+
+void RunTests()
 {
     // Matrix input {10, 100, 100};
     // Matrix connection {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, {1, 1, 1}};
@@ -129,6 +143,9 @@ void Run()
     assert(derivative1[1] == 100);
     assert(derivative1[2] == 1000);
     assert(derivative1[3] == 1110);
+
+
+
 }
 
 /**
@@ -136,7 +153,8 @@ void Run()
  */
 int main(void) {
 
-    Run();
+    RunTests();
+    RunNetwork();
 
     printf("Done\n");
     return 0;
