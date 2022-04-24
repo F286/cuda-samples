@@ -24,7 +24,7 @@ struct ML_Neuron
 __global__ void vectorMultiply(const ML_DeviceMatrix<float> input, const ML_DeviceMatrix<float> connection, ML_DeviceMatrix<float> output) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
-    if (i < Int2::Size(output.dimensions)) 
+    if (i < output.Count()) 
     {
         const float* connectionStart = &connection[i * input.dimensions.x];
 
@@ -47,7 +47,7 @@ void Multiply(ML_Matrix<float>& input, ML_Matrix<float>& connection, ML_Matrix<f
 __global__ void vectorDivide(const ML_DeviceMatrix<float> input, const ML_DeviceMatrix<float> connection, ML_DeviceMatrix<float> output) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
-    if (i < Int2::Size(output.dimensions))
+    if (i < output.Count())
     {
         const float* connectionStart = &connection[i * input.dimensions.x];
 
@@ -74,7 +74,7 @@ void Divide(ML_Matrix<float>& input, ML_Matrix<float>& connection, ML_Matrix<flo
 __global__ void vectorForward(const ML_DeviceMatrix<float> input, const ML_DeviceMatrix<ML_Neuron> connection, ML_DeviceMatrix<float> output) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
-    if (i < Int2::Size(output.dimensions))
+    if (i < output.Count())
     {
         const ML_Neuron* connectionStart = &connection[i * input.dimensions.x];
 

@@ -21,7 +21,7 @@ struct ML_KernelSize
 {
     ML_KernelSize(const Int2 dimensions)
         : threadsPerBlock(256)
-        , blocksPerGrid((dimensions.Size() + threadsPerBlock - 1) / threadsPerBlock)
+        , blocksPerGrid((dimensions.Count() + threadsPerBlock - 1) / threadsPerBlock)
 
     {
     }

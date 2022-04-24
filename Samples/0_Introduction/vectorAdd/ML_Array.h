@@ -13,14 +13,9 @@ struct Int2
     int x;
     int y;
  
-    int Size() const
+    __host__ __device__ int Count() const
     {
-        return Int2::Size(*this);
-    }
-
-    __host__ __device__ static int Size(const Int2& instance)
-    {
-        return instance.x * instance.y;
+        return x * y;
     }
 };
 
@@ -38,6 +33,11 @@ struct ML_DeviceMatrix
     __host__ __device__ const Type& operator[] (int index) const
     {
         return deviceBuffer[index];
+    }
+
+    __host__ __device__ int Count() const
+    {
+        return dimensions.Count();
     }
 };
 
@@ -79,7 +79,7 @@ struct ML_DeviceMatrixAllocation
 
     static size_t AllocationSize(const Int2 dimensions)
     {
-        return dimensions.Size() * sizeof(Type);
+        return dimensions.Count() * sizeof(Type);
     }
 
     void HostToDevice(Type* hostBuffer)
@@ -130,7 +130,7 @@ struct ML_Matrix
         : deviceAllocation(dimensions)
     {
         // Allocate the host input vector A
-        hostArray.resize(dimensions.Size());
+        hostArray.resize(dimensions.Count());
         hostBuffer = &hostArray[0];
 
         // Verify that allocations succeeded
@@ -146,7 +146,7 @@ struct ML_Matrix
     {
         // Allocate the host input vector A
         hostArray = constructFrom;
-        assert(hostArray.size() == dimensions.Size());
+        assert(hostArray.size() == dimensions.Count());
         hostBuffer = &hostArray[0];
 
         // Verify that allocations succeeded
