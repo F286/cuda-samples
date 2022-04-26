@@ -98,9 +98,10 @@
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <CudaCompile Include="vectorAdd.cu" />
+    <CudaCompile Include="program.cu" />
     <CudaCompile Include="vectorMultiply.cu" />
     <CudaCompile Include="vectorMultiply.cuh" />
+    <CudaCompile Include="vectorNeuron.cu" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ML_Array.cpp" />
@@ -112,6 +113,7 @@
     <ClInclude Include="ML_DenseConnection.h" />
     <ClInclude Include="ML_Helpers.h" />
     <ClInclude Include="ML_Neuron.h" />
+    <ClInclude Include="vectorNeuron.cuh" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
