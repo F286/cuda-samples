@@ -99,6 +99,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <CudaCompile Include="vectorAdd.cu" />
+    <CudaCompile Include="vectorMultiply.cu" />
     <CudaCompile Include="vectorMultiply.cuh" />
   </ItemGroup>
   <ItemGroup>
