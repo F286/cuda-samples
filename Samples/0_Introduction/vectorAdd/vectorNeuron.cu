@@ -2,6 +2,7 @@
 #include "ML_Helpers.h"
 #include "ML_Array.h"
 #include "ML_Neuron.h"
+#include <sm_60_atomic_functions.h>
 
 __global__ void vectorForward(const ML_DeviceMatrix<float> input, const ML_DeviceMatrix<ML_Neuron> connection, ML_DeviceMatrix<float> output) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
@@ -46,6 +47,34 @@ __global__ void vectorBackward(const ML_DeviceMatrix<float> source, const ML_Dev
 void Backward(ML_Matrix<float>& source, ML_Matrix<ML_Neuron>& connection, ML_Matrix<ML_Neuron>& derivative)
 {
     ML_Helpers::VerifyBackwardConnection(source.Dimensions(), connection.Dimensions(), derivative.Dimensions());
+    ML_CheckCudaError checkError;
+    ML_KernelSize size{ derivative.Dimensions() };
+    vectorBackward CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(source.DeviceArray(), connection.DeviceArray(), derivative.DeviceArray());
+}
+
+__global__ void vectorBackward(const ML_DeviceMatrix<float> source, const ML_DeviceMatrix<ML_Neuron> connection, ML_DeviceMatrix<float> derivative) {
+    int i = blockDim.x * blockIdx.x + threadIdx.x;
+
+    if (i < connection.Count())
+    {
+        const int sourceIndex = i / connection.Dimensions().x;
+
+        // Partial derivative, using chain rule
+        ML_Neuron partial;
+
+        partial.bias = source[sourceIndex] - connection[i].bias;
+        partial.weight = partial.bias / connection[i].weight;
+
+        const int derivativeIndex = i % connection.Dimensions().x;
+        atomicAdd(&derivative[derivativeIndex], partial.weight);
+        //derivative[derivativeIndex] += set;
+    }
+}
+void Backward(ML_Matrix<float>& source, ML_Matrix<ML_Neuron>& connection, ML_Matrix<float>& derivative)
+{
+    assert(source.Dimensions().x == connection.Dimensions().y);
+    assert(connection.Dimensions().x == derivative.Dimensions().x);
+    //ML_Helpers::VerifyBackwardConnection(source.Dimensions(), connection.Dimensions(), derivative.Dimensions());
     ML_CheckCudaError checkError;
     ML_KernelSize size{ derivative.Dimensions() };
     vectorBackward CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(source.DeviceArray(), connection.DeviceArray(), derivative.DeviceArray());
