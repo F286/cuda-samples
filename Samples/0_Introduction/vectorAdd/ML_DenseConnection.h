@@ -1,6 +1,5 @@
 #pragma once
-#include "ML_Array.h"
-#include <stdio.h>
+#include "ML_Helpers.h"
 
 namespace ML_DenseConnection
 {

@@ -1,5 +1,6 @@
 #pragma once
 #include <stdio.h>
+#include <assert.h>
 #include <vector>
 
 // For the CUDA runtime routines (prefixed with "cuda_")

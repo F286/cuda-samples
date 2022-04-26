@@ -1,30 +1,15 @@
-#include <stdio.h>
-#include <vector>
-#include <assert.h>
-#include <memory>
-// For the CUDA runtime routines (prefixed with "cuda_")
-#include <cuda_runtime.h>
-#include <helper_cuda.h>
-
-//#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
-
+#pragma once
 #include "ML_Array.h"
 #include "ML_CheckCudaError.h"
 #include "ML_DenseConnection.h"
 #include "ML_Helpers.h"
-
-struct ML_Neuron
-{
-    float weight;
-    float bias;
-    // Also uses ReLU
-};
+#include "ML_Neuron.h"
+#include "vectorMultiply.cuh"
 
 __global__ void vectorMultiply(const ML_DeviceMatrix<float> input, const ML_DeviceMatrix<float> connection, ML_DeviceMatrix<float> output) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
-    if (i < output.Count()) 
+    if (i < output.Count())
     {
         const float* connectionStart = &connection[i * input.dimensions.x];
 
@@ -138,7 +123,7 @@ void RunNetwork()
     ML_Matrix<ML_Neuron> derivativeConnection1to2{ Int2{ 2, 1 } };
 
     Backward(errorLayer2, connection1to2, derivativeConnection1to2);
-
+     
     assert(derivativeConnection1to2[0].weight == 10);
     assert(derivativeConnection1to2[1].weight == -10);
 }

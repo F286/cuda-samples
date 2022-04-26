@@ -1,6 +1,13 @@
 #pragma once
-#include "ML_Array.h"
-#include <crt/common_functions.h>
+#include <stdio.h>
+#include <vector>
+#include <assert.h>
+#include <memory>
+// For the CUDA runtime routines (prefixed with "cuda_")
+#include <cuda_runtime.h>
+#include <helper_cuda.h>
+//#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
 
 #ifdef __INTELLISENSE__
 #define CUDA_KERNEL(...)
@@ -8,18 +15,13 @@
 #define CUDA_KERNEL(...) <<< __VA_ARGS__ >>>
 #endif
 
+#include "ML_CheckCudaError.h"
+#include "ML_Array.h"
+
 namespace ML_Helpers
 {
-    void VerifyForwardConnection(Int2 input, Int2 connection, Int2 output)
-    {
-        assert(connection.x == input.x);
-        assert(connection.y == output.x);
-    }
-    void VerifyBackwardConnection(Int2 source, Int2 connection, Int2 derivative)
-    {
-        assert(connection == derivative);
-        assert(source.x == connection.y);
-    }
+    void VerifyForwardConnection(Int2 input, Int2 connection, Int2 output);
+    void VerifyBackwardConnection(Int2 source, Int2 connection, Int2 derivative);
 }
 
 struct ML_KernelSize

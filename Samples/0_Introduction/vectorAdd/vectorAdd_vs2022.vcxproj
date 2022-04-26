@@ -99,15 +99,18 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <CudaCompile Include="vectorAdd.cu" />
+    <CudaCompile Include="vectorMultiply.cuh" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ML_Array.cpp" />
+    <ClCompile Include="ML_Helpers.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ML_Array.h" />
     <ClInclude Include="ML_CheckCudaError.h" />
     <ClInclude Include="ML_DenseConnection.h" />
     <ClInclude Include="ML_Helpers.h" />
+    <ClInclude Include="ML_Neuron.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
