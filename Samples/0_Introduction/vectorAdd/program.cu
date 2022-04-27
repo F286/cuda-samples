@@ -28,16 +28,15 @@ void RunNetwork()
     ML_Matrix<float> errorLayer2{ layer2.Dimensions(), { 1, 1 } };
     ML_Matrix<ML_Neuron> derivativeConnection1to2{ connection1to2.Dimensions() };
 
-    Backward(errorLayer2, connection1to2, derivativeConnection1to2);
+    //Backward(errorLayer2, connection1to2, derivativeConnection1to2);
+
+    ML_Matrix<float> errorLayer1{ layer1.Dimensions() };
+    Backward(errorLayer2, connection1to2, derivativeConnection1to2, errorLayer1);
 
     assert(derivativeConnection1to2[0].weight == 10);
     assert(derivativeConnection1to2[1].weight == -10);
     assert(derivativeConnection1to2[2].weight == 10);
     assert(derivativeConnection1to2[3].weight == -10);
-
-
-    ML_Matrix<float> errorLayer1{ layer1.Dimensions() };
-    Backward(errorLayer2, connection1to2, errorLayer1);
 
     assert(errorLayer1[0] == 20);
     assert(errorLayer1[1] == -20);

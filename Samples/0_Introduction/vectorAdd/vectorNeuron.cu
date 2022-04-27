@@ -29,30 +29,30 @@ void Forward(ML_Matrix<float>& input, ML_Matrix<ML_Neuron>& connection, ML_Matri
     vectorForward CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(input.DeviceArray(), connection.DeviceArray(), output.DeviceArray());
 }
 
-__global__ void vectorBackward(const ML_DeviceMatrix<float> source, const ML_DeviceMatrix<ML_Neuron> connection, ML_DeviceMatrix<ML_Neuron> derivative) {
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
+//__global__ void vectorBackward(const ML_DeviceMatrix<float> source, const ML_DeviceMatrix<ML_Neuron> connection, ML_DeviceMatrix<ML_Neuron> derivative) {
+//    int i = blockDim.x * blockIdx.x + threadIdx.x;
+//
+//    if (i < derivative.Count())
+//    {
+//        const int sourceIndex = i % connection.Dimensions().y;
+//
+//        ML_Neuron set;
+//
+//        set.bias = source[sourceIndex] - connection[i].bias;
+//        set.weight = set.bias / connection[i].weight;
+//
+//        derivative[i] = set;
+//    }
+//}
+//void Backward(ML_Matrix<float>& source, ML_Matrix<ML_Neuron>& connection, ML_Matrix<ML_Neuron>& derivative)
+//{
+//    ML_Helpers::VerifyBackwardConnection(source.Dimensions(), connection.Dimensions(), derivative.Dimensions());
+//    ML_CheckCudaError checkError;
+//    ML_KernelSize size{ derivative.Dimensions() };
+//    vectorBackward CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(source.DeviceArray(), connection.DeviceArray(), derivative.DeviceArray());
+//}
 
-    if (i < derivative.Count())
-    {
-        const int sourceIndex = i % connection.Dimensions().y;
-
-        ML_Neuron set;
-
-        set.bias = source[sourceIndex] - connection[i].bias;
-        set.weight = set.bias / connection[i].weight;
-
-        derivative[i] = set;
-    }
-}
-void Backward(ML_Matrix<float>& source, ML_Matrix<ML_Neuron>& connection, ML_Matrix<ML_Neuron>& derivative)
-{
-    ML_Helpers::VerifyBackwardConnection(source.Dimensions(), connection.Dimensions(), derivative.Dimensions());
-    ML_CheckCudaError checkError;
-    ML_KernelSize size{ derivative.Dimensions() };
-    vectorBackward CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(source.DeviceArray(), connection.DeviceArray(), derivative.DeviceArray());
-}
-
-__global__ void vectorBackward(const ML_DeviceMatrix<float> source, const ML_DeviceMatrix<ML_Neuron> connection, ML_DeviceMatrix<float> derivative) {
+__global__ void vectorBackward(const ML_DeviceMatrix<float> output, const ML_DeviceMatrix<ML_Neuron> connection, ML_DeviceMatrix<ML_Neuron> connectionDerivative, ML_DeviceMatrix<float> inputDerivative) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
     if (i < connection.Count())
@@ -62,20 +62,22 @@ __global__ void vectorBackward(const ML_DeviceMatrix<float> source, const ML_Dev
         // Partial derivative, using chain rule
         ML_Neuron partial;
 
-        partial.bias = source[sourceIndex] - connection[i].bias;
+        partial.bias = output[sourceIndex] - connection[i].bias;
         partial.weight = partial.bias / connection[i].weight;
 
+        connectionDerivative[i] = partial;
+
         const int derivativeIndex = i % connection.Dimensions().x;
-        atomicAdd(&derivative[derivativeIndex], partial.weight);
-        //derivative[derivativeIndex] += set;
+        atomicAdd(&inputDerivative[derivativeIndex], partial.weight);
     }
 }
-void Backward(ML_Matrix<float>& source, ML_Matrix<ML_Neuron>& connection, ML_Matrix<float>& derivative)
+void Backward(ML_Matrix<float>& output, ML_Matrix<ML_Neuron>& connection, ML_Matrix<ML_Neuron>& connectionDerivative, ML_Matrix<float>& inputDerivative)
 {
-    assert(source.Dimensions().x == connection.Dimensions().y);
-    assert(connection.Dimensions().x == derivative.Dimensions().x);
-    //ML_Helpers::VerifyBackwardConnection(source.Dimensions(), connection.Dimensions(), derivative.Dimensions());
+    assert(output.Dimensions().x == connection.Dimensions().y);
+    assert(connection.Dimensions().x == inputDerivative.Dimensions().x);
+    assert(connection.Dimensions() == connectionDerivative.Dimensions());
+
     ML_CheckCudaError checkError;
-    ML_KernelSize size{ derivative.Dimensions() };
-    vectorBackward CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(source.DeviceArray(), connection.DeviceArray(), derivative.DeviceArray());
+    ML_KernelSize size{ inputDerivative.Dimensions() };
+    vectorBackward CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(output.DeviceArray(), connection.DeviceArray(), connectionDerivative.DeviceArray(), inputDerivative.DeviceArray());
 }
