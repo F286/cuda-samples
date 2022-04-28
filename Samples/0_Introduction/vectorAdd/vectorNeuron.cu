@@ -82,31 +82,41 @@ void Backward(ML_Matrix<float>& output, ML_Matrix<ML_Neuron>& connection, ML_Mat
     vectorBackward CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(output.DeviceArray(), connection.DeviceArray(), connectionDerivative.DeviceArray(), inputDerivative.DeviceArray());
 }
 
-__global__ void vectorError(const ML_DeviceMatrix<float> input, const ML_DeviceMatrix<float> expected, ML_DeviceMatrix<float> error) {
+__global__ void vectorError(const ML_DeviceMatrix<float> value, const ML_DeviceMatrix<float> expected, ML_DeviceMatrix<float> error) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
     if (i < error.Count())
     {
-        //const int sourceIndex = i / connection.Dimensions().x;
-
-        //// Partial derivative, using chain rule
-        //ML_Neuron partial;
-
-        //partial.bias = output[sourceIndex] - connection[i].bias;
-        //partial.weight = partial.bias / connection[i].weight;
-
-        //connectionDerivative[i] = partial;
-
-        //const int derivativeIndex = i % connection.Dimensions().x;
-        //atomicAdd(&inputDerivative[derivativeIndex], partial.weight);
+        error[i] = expected[i] - value[i];
     }
 }
-void Error(ML_Matrix<float>& input, ML_Matrix<float>& expected, ML_Matrix<float>& error)
+void Error(ML_Matrix<float>& value, ML_Matrix<float>& expected, ML_Matrix<float>& error)
 {
-    assert(input.Dimensions() == expected.Dimensions());
-    assert(input.Dimensions() == error.Dimensions());
+    assert(value.Dimensions() == expected.Dimensions());
+    assert(value.Dimensions() == error.Dimensions());
 
     ML_CheckCudaError checkError;
     ML_KernelSize size{ error.Dimensions() };
-    vectorError CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(input.DeviceArray(), expected.DeviceArray(), error.DeviceArray());
+    vectorError CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(value.DeviceArray(), expected.DeviceArray(), error.DeviceArray());
 }
+//
+//template<class Type, class TRun>
+//__global__ void vectorRun(const ML_DeviceMatrix<Type> a, const ML_DeviceMatrix<Type> b, ML_DeviceMatrix<Type> output, TRun run) {
+//    int i = blockDim.x * blockIdx.x + threadIdx.x;
+//
+//    if (i < output.Count())
+//    {
+//        output[i] = run(a, b);
+//        //output[i] = TRun(a, b);
+//    }
+//}
+//template<class Type, class TRun>
+//void Run(ML_Matrix<Type>& a, ML_Matrix<Type>& b, ML_Matrix<Type>& output, TRun run)
+//{
+//    assert(a.Dimensions() == b.Dimensions());
+//    assert(a.Dimensions() == output.Dimensions());
+//
+//    ML_CheckCudaError checkError;
+//    ML_KernelSize size{ output.Dimensions() };
+//    vectorError CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock) (a.DeviceArray(), b.DeviceArray(), output.DeviceArray(), run);
+//}

@@ -82,6 +82,9 @@
       <Runtime>MTd</Runtime>
       <TargetMachinePlatform>64</TargetMachinePlatform>
     </CudaCompile>
+    <Manifest>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">--extended-lambda %(AdditionalOptions)</AdditionalOptions>
+    </Manifest>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
     <ClCompile>
@@ -96,6 +99,9 @@
       <Runtime>MT</Runtime>
       <TargetMachinePlatform>64</TargetMachinePlatform>
     </CudaCompile>
+    <Manifest>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">--extended-lambda %(AdditionalOptions)</AdditionalOptions>
+    </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
     <CudaCompile Include="program.cu" />
