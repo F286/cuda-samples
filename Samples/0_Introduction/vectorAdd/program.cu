@@ -7,32 +7,24 @@
 #include "vectorMultiply.cuh"
 #include "vectorNeuron.cuh"
 
-//template<class Type, class TRun>
-//__global__ void vectorRun(const ML_DeviceMatrix<Type> a, const ML_DeviceMatrix<Type> b, ML_DeviceMatrix<Type> output)//, TRun run) {
-//{
-//    int i = blockDim.x * blockIdx.x + threadIdx.x;
-//
-//    if (i < output.Count())
-//    {
-//        output[i] = TRun(a[i], b[i]);
-//        //output[i] = run(a, b);
-//        //output[i] = TRun(a, b);
-//    }
-//}
-//template<class Type, class TRun>
-//void Run(ML_Matrix<Type>& a, ML_Matrix<Type>& b, ML_Matrix<Type>& output)// TRun run)
-//{
-//    assert(a.Dimensions() == b.Dimensions());
-//    assert(a.Dimensions() == output.Dimensions());
-//
-//    ML_CheckCudaError checkError;
-//    ML_KernelSize size{ output.Dimensions() };
-//    vectorRun<Type, TRun> CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock) (a.DeviceArray(), b.DeviceArray(), output.DeviceArray());
-//}
 
-__device__ __host__ float CalculateError(float a, float b)
+template<class Type>
+__global__ void vectorApply(ML_DeviceMatrix<Type> original, const ML_DeviceMatrix<Type> deriviative, const float rate) {
+    int i = blockDim.x * blockIdx.x + threadIdx.x;
+
+    if (i < original.Count())
+    {
+        original[i] += deriviative[i] * rate;
+    }
+}
+template<class Type>
+void Apply(ML_Matrix<Type>& original, ML_Matrix<Type>& deriviative, float rate)
 {
-    return b - a;
+    assert(original.Dimensions() == deriviative.Dimensions());
+
+    ML_CheckCudaError checkError;
+    ML_KernelSize size{ original.Dimensions() };
+    vectorApply CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock) (original.DeviceArray(), deriviative.DeviceArray(), rate);
 }
 
 void RunNetwork()
@@ -47,35 +39,26 @@ void RunNetwork()
     ML_Matrix<ML_Neuron> derivative1_2{ connection1_2.Dimensions() };
     ML_Matrix<float> derivative1{ value1.Dimensions() };
 
-    // Run forward
-    Forward(value1, connection1_2, value2);
+    for (int i = 0; i < 100; i++)
+    {
+        // Run forward
+        Forward(value1, connection1_2, value2);
 
-    assert(value2[0] == (1 + 12));
-    assert(value2[1] == (1 + 12));
+        // Calculate error
+        Error(value2, expected2, error2);
 
-    // Calculate error
-    Error(value2, expected2, error2);
-    //Run<float, CalculateError>(value2, expected2, error2);// , [] __global__(float a, float b) -> float { return b - a; });
+        // Derivative
+        Backward(error2, connection1_2, derivative1_2, derivative1);
 
-    assert(error2[0] != 0);
+        // Apply training
+        Apply(connection1_2, derivative1_2, 0.0001f);
 
-    // Run back propagation
-
-    //Backward(errorLayer2, connection1to2, derivativeConnection1to2);
-    //Error()
-
-    Backward(error2, connection1_2, derivative1_2, derivative1);
-
-    derivative1_2[0];
-    derivative1[0];
-
-    assert(derivative1_2[0].weight == 10);
-    assert(derivative1_2[1].weight == -10);
-    assert(derivative1_2[2].weight == 10);
-    assert(derivative1_2[3].weight == -10);
-
-    assert(derivative1[0] == 20);
-    assert(derivative1[1] == -20);
+        // Print 
+        float loss = abs(error2[0]) + abs(error2[1]);
+        //printf("atomicSub failed\n");
+        //error2[0];
+        printf("Loss: %f", loss);
+    }
 }
 
 void RunTests()
