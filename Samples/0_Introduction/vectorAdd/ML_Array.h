@@ -95,7 +95,7 @@ struct ML_DeviceMatrixAllocation
         cudaError_t err = cudaSuccess;
 
         // Copy the host input vectors A and B in host memory to the device input vectors in device memory
-        printf("Copy input data from the host memory to the CUDA device\n");
+        //printf("Copy input data from the host memory to the CUDA device\n");
         err = cudaMemcpy(matrix.deviceBuffer, hostBuffer, AllocationSize(matrix.dimensions), cudaMemcpyHostToDevice);
 
         if (err != cudaSuccess) {
@@ -111,7 +111,7 @@ struct ML_DeviceMatrixAllocation
         cudaError_t err = cudaSuccess;
 
         // Copy the device result vector in device memory to the host result vector in host memory.
-        printf("Copy output data from the CUDA device to the host memory\n");
+        //printf("Copy output data from the CUDA device to the host memory\n");
         err = cudaMemcpy(hostBuffer, matrix.deviceBuffer, AllocationSize(matrix.dimensions), cudaMemcpyDeviceToHost);
 
         if (err != cudaSuccess) {

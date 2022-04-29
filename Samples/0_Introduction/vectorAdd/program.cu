@@ -25,21 +25,34 @@ void Apply(ML_Matrix<Type>& original, ML_Matrix<Type>& deriviative, float rate)
     ML_CheckCudaError checkError;
     ML_KernelSize size{ original.Dimensions() };
     vectorApply CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock) (original.DeviceArray(), deriviative.DeviceArray(), rate);
+
+    // Debug CPU copy back
+    original.HostArray();
 }
 
 void RunNetwork()
 {
-    ML_Matrix<float> value1{ Int2{ 2, 1 }, {10, 100} };
-    ML_Matrix<float> value2{ Int2{ 2, 1 } };
-    ML_Matrix<ML_Neuron> connection1_2{ Int2{ 2, 2 }, 
-        { {0.1, 0}, {0.1, 2}, 
-          {0.1, 0}, {0.1, 2} } };
+    const int INPUT_COUNT = 2;
+    const int CONNECTION_COUNT = 100;
+    const int OUTPUT_COUNT = 2;
+
+    ML_Matrix<float> value1{ Int2{ INPUT_COUNT, 1 }, {10, 100} };
+    ML_Matrix<float> value2{ Int2{ OUTPUT_COUNT, 1 } };
+    ML_Matrix<ML_Neuron> connection1_2{ Int2{ INPUT_COUNT, OUTPUT_COUNT } };
+
     ML_Matrix<float> expected2{ value2.Dimensions(), { 10, -10 } };
     ML_Matrix<float> error2{ value2.Dimensions(), { 1, 1 } };
+
     ML_Matrix<ML_Neuron> derivative1_2{ connection1_2.Dimensions() };
     ML_Matrix<float> derivative1{ value1.Dimensions() };
 
-    for (int i = 0; i < 100; i++)
+    // Randomize weights
+    for (int i = 0; i < connection1_2.Dimensions().Count(); i++)
+    {
+        connection1_2[i] = ML_Neuron{ rand() / (float)RAND_MAX, rand() / (float)RAND_MAX };
+    }
+
+    for (int i = 0; i < 20; i++)
     {
         // Run forward
         Forward(value1, connection1_2, value2);
@@ -57,7 +70,7 @@ void RunNetwork()
         float loss = abs(error2[0]) + abs(error2[1]);
         //printf("atomicSub failed\n");
         //error2[0];
-        printf("Loss: %f", loss);
+        printf("Loss: %f\n", loss);
     }
 }
 

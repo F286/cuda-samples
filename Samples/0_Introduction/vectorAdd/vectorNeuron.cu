@@ -27,6 +27,9 @@ void Forward(ML_Matrix<float>& input, ML_Matrix<ML_Neuron>& connection, ML_Matri
     ML_CheckCudaError checkError;
     ML_KernelSize size{ output.Dimensions() };
     vectorForward CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(input.DeviceArray(), connection.DeviceArray(), output.DeviceArray());
+
+    // Debug CPU copy back
+    output.HostArray();
 }
 
 __global__ void vectorBackward(const ML_DeviceMatrix<float> output, const ML_DeviceMatrix<ML_Neuron> connection, ML_DeviceMatrix<ML_Neuron> connectionDerivative, ML_DeviceMatrix<float> inputDerivative) {
@@ -57,6 +60,10 @@ void Backward(ML_Matrix<float>& output, ML_Matrix<ML_Neuron>& connection, ML_Mat
     ML_CheckCudaError checkError;
     ML_KernelSize size{ inputDerivative.Dimensions() };
     vectorBackward CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(output.DeviceArray(), connection.DeviceArray(), connectionDerivative.DeviceArray(), inputDerivative.DeviceArray());
+
+    // Debug CPU copy back
+    connectionDerivative.HostArray();
+    inputDerivative.HostArray();
 }
 
 __global__ void vectorError(const ML_DeviceMatrix<float> value, const ML_DeviceMatrix<float> expected, ML_DeviceMatrix<float> error) {
@@ -75,4 +82,7 @@ void Error(ML_Matrix<float>& value, ML_Matrix<float>& expected, ML_Matrix<float>
     ML_CheckCudaError checkError;
     ML_KernelSize size{ error.Dimensions() };
     vectorError CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(value.DeviceArray(), expected.DeviceArray(), error.DeviceArray());
+
+    // Debug CPU copy back
+    error.HostArray();
 }
