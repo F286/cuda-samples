@@ -2,7 +2,7 @@
 #include "ML_Helpers.h"
 #include "ML_Array.h"
 #include "ML_Neuron.h"
-#include <sm_60_atomic_functions.h>
+#include "device_atomic_functions.h"
 
 __global__ void vectorForward(const ML_DeviceMatrix<float> input, const ML_DeviceMatrix<ML_Neuron> connection, ML_DeviceMatrix<float> output) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
@@ -44,18 +44,38 @@ __global__ void vectorBackward(const ML_DeviceMatrix<float> output, const ML_Dev
         ML_Neuron partial;
 
         partial.bias = output[outputIndex];
-        // Weights need to be scaled by input values and summed to get total weight derivative
-        float inputTimesWeightSummed = 0.0f;
+        // Recalculate connection value from input and connection weights
+        float connectionValue = 0.0f;
         for (int inputIndex = 0; inputIndex < input.Dimensions().x; inputIndex++)
         {
-            inputTimesWeightSummed += input[inputIndex] / connection[connectionIndex].weight;
+            connectionValue += input[inputIndex] * connection[connectionIndex].weight;
         }
-        partial.weight = partial.bias / inputTimesWeightSummed;
-        //partial.weight = partial.bias / connection[i].weight;
+        // Calculate derivative
+        const float derivative = partial.bias / connectionValue;
+        if (derivative > 0.0f)
+        {
+            partial.weight = derivative;
+
+            for (int inputIndex = 0; inputIndex < input.Dimensions().x; inputIndex++)
+            {
+                atomicAdd(&inputDerivative[inputIndex], derivative / input[inputIndex]);
+            }
+        }
+        else
+        {
+            partial.weight = 0.0f;
+        }
+        //// Weights need to be scaled by input values and summed to get total weight derivative
+        //float inputTimesWeightSummed = 0.0f;
+        //for (int inputIndex = 0; inputIndex < input.Dimensions().x; inputIndex++)
+        //{
+        //    inputTimesWeightSummed += input[inputIndex] / connection[connectionIndex].weight;
+        //}
+        //partial.weight = partial.bias / inputTimesWeightSummed;
 
         connectionDerivative[connectionIndex] = partial;
-        
-        atomicAdd(&inputDerivative[inputIndex], partial.weight);
+        /*
+        atomicAdd(&inputDerivative[inputIndex], partial.weight);*/
     }
 }
 void Backward(ML_Matrix<float>& output, ML_Matrix<ML_Neuron>& connection, ML_Matrix<float>& input, ML_Matrix<ML_Neuron>& connectionDerivative, ML_Matrix<float>& inputDerivative)

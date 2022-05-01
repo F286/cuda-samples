@@ -44,7 +44,7 @@ float Loss(ML_Matrix<float>& values)
 
     for (int i = 0; i < values.Dimensions().Count(); i++)
     {
-        total += values[i];
+        total += abs(values[i]);
     }
 
     return total;
@@ -55,9 +55,9 @@ void RunNetwork()
     const int INPUT_COUNT = 1;
     const int CONNECTION_COUNT = 1;
     const int OUTPUT_COUNT = 2;
-    const int TRAINING_STEPS = 1000;
+    const int TRAINING_STEPS = 100;
     //const float TRAINING_RATE = 0.5f;
-    const float TRAINING_RATE = 0.01f;
+    const float TRAINING_RATE = 0.1f;
 
 
     ML_Matrix<float> value1{ Int2{ INPUT_COUNT, 1 }, {10} };
@@ -93,6 +93,8 @@ void RunNetwork()
         Error(value3, expected3, error3);
 
         // Derivative
+        derivative1.Clear();
+        derivative2.Clear();
         Backward(error3, connection2_3, value2, derivative2_3, derivative2);
         Backward(derivative2, connection1_2, value1, derivative1_2, derivative1);
         //Backward(error3, connection1_3, value1, derivative1_3, derivative1);
@@ -102,8 +104,9 @@ void RunNetwork()
         Apply(connection1_2, derivative1_2, TRAINING_RATE);
         //Apply(connection1_3, derivative1_3, TRAINING_RATE);
 
-        // Print 
-        printf("Loss: %f\n", Loss(error3));
+        // Print
+        const float loss = Loss(error3);
+        printf("Loss: %f\n", loss);
     }
 }
 

@@ -168,6 +168,15 @@ struct ML_Matrix
 
     ML_Matrix(const ML_Matrix&) = delete;
 
+    void Clear()
+    {
+        for (int i = 0; i < hostArray.size(); i++)
+        {
+            hostArray[i] = Type();
+        }
+        syncState = ML_SyncState::HostAuthorative;
+    }
+
     //void InitializeToRandomValues()
     //{
     //    for (int i = 0; i < hostArray.size(); ++i)
