@@ -153,6 +153,7 @@ struct ML_Matrix
         : deviceAllocation(dimensions)
     {
         // Allocate the host input vector A
+        assert(dimensions.Count() == constructFrom.size());
         hostArray = constructFrom;
         assert(hostArray.size() == dimensions.Count());
         hostBuffer = &hostArray[0];

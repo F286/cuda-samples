@@ -53,53 +53,54 @@ float Loss(ML_Matrix<float>& values)
 void RunNetwork()
 {
     const int INPUT_COUNT = 1;
-    //const int CONNECTION_COUNT = 1;
-    const int OUTPUT_COUNT = 1;
+    const int CONNECTION_COUNT = 1;
+    const int OUTPUT_COUNT = 2;
     const int TRAINING_STEPS = 1000;
-    const float TRAINING_RATE = 0.5f;
-    //const float TRAINING_RATE = 0.001f;
+    //const float TRAINING_RATE = 0.5f;
+    const float TRAINING_RATE = 0.01f;
 
 
     ML_Matrix<float> value1{ Int2{ INPUT_COUNT, 1 }, {10} };
-    //ML_Matrix<float> value2{ Int2{ CONNECTION_COUNT, 1 } };
+    //ML_Matrix<float> value1{ Int2{ INPUT_COUNT, 1 }, {10, -5} };
+    ML_Matrix<float> value2{ Int2{ CONNECTION_COUNT, 1 } };
     ML_Matrix<float> value3{ Int2{ OUTPUT_COUNT, 1 } };
-    //ML_Matrix<ML_Neuron> connection1_2{ Int2{ INPUT_COUNT, CONNECTION_COUNT } };
-    //ML_Matrix<ML_Neuron> connection2_3{ Int2{ CONNECTION_COUNT, OUTPUT_COUNT } };
-    ML_Matrix<ML_Neuron> connection1_3{ Int2{ INPUT_COUNT, OUTPUT_COUNT } };
+    ML_Matrix<ML_Neuron> connection1_2{ Int2{ INPUT_COUNT, CONNECTION_COUNT } };
+    ML_Matrix<ML_Neuron> connection2_3{ Int2{ CONNECTION_COUNT, OUTPUT_COUNT } };
+    //ML_Matrix<ML_Neuron> connection1_3{ Int2{ INPUT_COUNT, OUTPUT_COUNT } };
 
-    ML_Matrix<float> expected3{ value3.Dimensions(), { 10 } };
+    ML_Matrix<float> expected3{ value3.Dimensions(), { 10, 2 } };
     ML_Matrix<float> error3{ value3.Dimensions() };
 
-    //ML_Matrix<ML_Neuron> derivative1_2{ connection1_2.Dimensions() };
-    //ML_Matrix<ML_Neuron> derivative2_3{ connection2_3.Dimensions() };
-    ML_Matrix<ML_Neuron> derivative1_3{ connection1_3.Dimensions() };
+    ML_Matrix<ML_Neuron> derivative1_2{ connection1_2.Dimensions() };
+    ML_Matrix<ML_Neuron> derivative2_3{ connection2_3.Dimensions() };
+    //ML_Matrix<ML_Neuron> derivative1_3{ connection1_3.Dimensions() };
     ML_Matrix<float> derivative1{ value1.Dimensions() };
-    //ML_Matrix<float> derivative2{ value2.Dimensions() };
+    ML_Matrix<float> derivative2{ value2.Dimensions() };
 
     // Randomize weights
-    //RandomizeWeights(connection1_2);
-    //RandomizeWeights(connection2_3);
-    RandomizeWeights(connection1_3);
+    RandomizeWeights(connection1_2);
+    RandomizeWeights(connection2_3);
+    //RandomizeWeights(connection1_3);
 
     for (int i = 0; i < TRAINING_STEPS; i++)
     {
         // Run forward
-        //Forward(value1, connection1_2, value2);
-        //Forward(value2, connection2_3, value3);
-        Forward(value1, connection1_3, value3);
+        Forward(value1, connection1_2, value2);
+        Forward(value2, connection2_3, value3);
+        //Forward(value1, connection1_3, value3);
 
         // Calculate error
         Error(value3, expected3, error3);
 
         // Derivative
-        //Backward(error3, connection2_3, derivative2_3, derivative2);
-        //Backward(derivative2, connection1_2, derivative1_2, derivative1);
-        Backward(error3, connection1_3, value1, derivative1_3, derivative1);
+        Backward(error3, connection2_3, value2, derivative2_3, derivative2);
+        Backward(derivative2, connection1_2, value1, derivative1_2, derivative1);
+        //Backward(error3, connection1_3, value1, derivative1_3, derivative1);
 
         // Apply training
-        //Apply(connection2_3, derivative2_3, TRAINING_RATE);
-        //Apply(connection1_2, derivative1_2, TRAINING_RATE);
-        Apply(connection1_3, derivative1_3, TRAINING_RATE);
+        Apply(connection2_3, derivative2_3, TRAINING_RATE);
+        Apply(connection1_2, derivative1_2, TRAINING_RATE);
+        //Apply(connection1_3, derivative1_3, TRAINING_RATE);
 
         // Print 
         printf("Loss: %f\n", Loss(error3));

@@ -33,29 +33,29 @@ void Forward(ML_Matrix<float>& input, ML_Matrix<ML_Neuron>& connection, ML_Matri
 }
 
 __global__ void vectorBackward(const ML_DeviceMatrix<float> output, const ML_DeviceMatrix<ML_Neuron> connection, const ML_DeviceMatrix<float> input, ML_DeviceMatrix<ML_Neuron> connectionDerivative, ML_DeviceMatrix<float> inputDerivative) {
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
+    int connectionIndex = blockDim.x * blockIdx.x + threadIdx.x;
 
-    if (i < connection.Count())
+    if (connectionIndex < connection.Count())
     {
-        const int sourceIndex = i / connection.Dimensions().x;
+        const int outputIndex = connectionIndex % output.Dimensions().x;
+        const int inputIndex = connectionIndex % input.Dimensions().x;
 
         // Partial derivative, using chain rule
         ML_Neuron partial;
 
-        partial.bias = output[sourceIndex];
+        partial.bias = output[outputIndex];
         // Weights need to be scaled by input values and summed to get total weight derivative
         float inputTimesWeightSummed = 0.0f;
         for (int inputIndex = 0; inputIndex < input.Dimensions().x; inputIndex++)
         {
-            inputTimesWeightSummed += input[i] / connection[i].weight;
+            inputTimesWeightSummed += input[inputIndex] / connection[connectionIndex].weight;
         }
         partial.weight = partial.bias / inputTimesWeightSummed;
         //partial.weight = partial.bias / connection[i].weight;
 
-        connectionDerivative[i] = partial;
-
-        const int derivativeIndex = i % connection.Dimensions().x;
-        atomicAdd(&inputDerivative[derivativeIndex], partial.weight);
+        connectionDerivative[connectionIndex] = partial;
+        
+        atomicAdd(&inputDerivative[inputIndex], partial.weight);
     }
 }
 void Backward(ML_Matrix<float>& output, ML_Matrix<ML_Neuron>& connection, ML_Matrix<float>& input, ML_Matrix<ML_Neuron>& connectionDerivative, ML_Matrix<float>& inputDerivative)
@@ -65,7 +65,7 @@ void Backward(ML_Matrix<float>& output, ML_Matrix<ML_Neuron>& connection, ML_Mat
     assert(connection.Dimensions() == connectionDerivative.Dimensions());
 
     ML_CheckCudaError checkError;
-    ML_KernelSize size{ inputDerivative.Dimensions() };
+    ML_KernelSize size{ connectionDerivative.Dimensions() };
     vectorBackward CUDA_KERNEL(size.blocksPerGrid, size.threadsPerBlock)(output.DeviceArray(), connection.DeviceArray(), input.DeviceArray(), connectionDerivative.DeviceArray(), inputDerivative.DeviceArray());
 
     // Debug CPU copy back
